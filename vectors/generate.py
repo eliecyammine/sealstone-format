@@ -107,15 +107,24 @@ def single_totp_vault() -> dict:
 def full_vault() -> dict:
     """Every item type, both link directions, keepers, and an unknown type.
 
-    The unknown type is the forward-compatibility check: a decoder must carry it
-    through a round trip untouched rather than dropping it.
+    This family carries the forward-compatibility checks. A decoder must round
+    trip all of them untouched rather than dropping them:
+
+      - an item whose ``type`` it does not know
+      - a key at the document root it does not know
+      - a key inside an account, a link and a keeper it does not know
+
+    The nested ones matter most in practice. A new optional field lands on an
+    account or a keeper far more often than at the root, so that is where a
+    decoder that quietly drops what it does not understand will lose real data.
     """
     document = empty_vault()
     document["vaultId"] = "00000000-0000-4000-8000-000000000003"
     document["accounts"] = [
         {"id": "acc_mail", "service": "Mail", "identifier": "user@example.com",
          "domain": "mail.example", "tags": ["email", "keystone"], "notes": None,
-         "createdAt": "2026-08-24T00:00:00Z"},
+         "createdAt": "2026-08-24T00:00:00Z",
+         "fieldFromTheFuture": {"nested": [1, 2, 3]}},
         {"id": "acc_bank", "service": "Bank", "identifier": "user",
          "domain": "bank.example", "tags": ["finance"], "notes": None,
          "createdAt": "2026-08-24T00:00:00Z"},
@@ -162,7 +171,8 @@ def full_vault() -> dict:
     document["links"] = [
         {"id": "lnk_mail_bank", "sourceAccountId": "acc_mail",
          "targetAccountId": "acc_bank", "method": "email",
-         "verifiedAt": "2026-08-24T00:00:00Z", "note": None},
+         "verifiedAt": "2026-08-24T00:00:00Z", "note": None,
+         "strengthFromTheFuture": "weak"},
         {"id": "lnk_mail_wallet", "sourceAccountId": "acc_mail",
          "targetAccountId": "acc_wallet", "method": "email",
          "verifiedAt": None, "note": "unverified"},
@@ -175,7 +185,10 @@ def full_vault() -> dict:
         "bundleId": "bnd_1", "fragmentIndex": 1,
         "issuedAt": "2026-08-24T00:00:00Z", "lastConfirmedAt": None,
         "status": "active",
+        "relayFromTheFuture": {"endpoint": "https://example.invalid/r"},
     }]
+    # At the document root as well, which is the case §3.3 states outright.
+    document["settingsFromTheFuture"] = {"autoLockSeconds": 60}
     return document
 
 

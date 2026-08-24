@@ -124,6 +124,47 @@ class TestOpenSucceeds(unittest.TestCase):
         self.assertEqual(len(future), 1)
         self.assertEqual(future[0]["unknownField"], {"nested": [1, 2, 3]})
 
+    def test_full_vault_preserves_unknown_keys_everywhere(self):
+        """Not only at the root.
+
+        A new optional field lands on an account or a keeper far more often
+        than at the document root, so that is where a decoder that drops what
+        it does not understand will lose real data.
+        """
+        family = next(f for f in families_of_kind("open-succeeds")
+                      if f["id"] == "03-full-vault")
+        blob = (VECTORS / family["file"]).read_bytes()
+        plaintext, _ = envelope.open_impression(blob, passphrase=passphrase_of(family))
+        document = vault.parse(plaintext)
+
+        self.assertEqual(document["settingsFromTheFuture"], {"autoLockSeconds": 60})
+
+        account = next(a for a in document["accounts"] if a["id"] == "acc_mail")
+        self.assertEqual(account["fieldFromTheFuture"], {"nested": [1, 2, 3]})
+
+        link = next(l for l in document["links"] if l["id"] == "lnk_mail_bank")
+        self.assertEqual(link["strengthFromTheFuture"], "weak")
+
+        keeper = document["keepers"][0]
+        self.assertEqual(keeper["relayFromTheFuture"],
+                         {"endpoint": "https://example.invalid/r"})
+
+    def test_re_serialising_keeps_every_unknown_key(self):
+        """Reading and writing again must not be a way to lose data."""
+        family = next(f for f in families_of_kind("open-succeeds")
+                      if f["id"] == "03-full-vault")
+        blob = (VECTORS / family["file"]).read_bytes()
+        plaintext, _ = envelope.open_impression(blob, passphrase=passphrase_of(family))
+
+        again = vault.parse(json.dumps(vault.parse(plaintext)).encode("utf-8"))
+
+        self.assertIn("settingsFromTheFuture", again)
+        self.assertIn("fieldFromTheFuture",
+                      next(a for a in again["accounts"] if a["id"] == "acc_mail"))
+        self.assertIn("strengthFromTheFuture",
+                      next(l for l in again["links"] if l["id"] == "lnk_mail_bank"))
+        self.assertIn("relayFromTheFuture", again["keepers"][0])
+
 
 class TestOpenFails(unittest.TestCase):
     def test_every_tampered_region_is_rejected(self):

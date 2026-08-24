@@ -40,11 +40,20 @@ decoder/      Reference decoder, Python, no dependencies beyond the standard
 
 There is no Swift in this repository. The Swift implementation lives in `sealstone-kit`.
 
+## Speed
+
+Pure Python, so key derivation is slow: roughly 50 seconds per derivation at the
+real parameters (64 MiB, t=3, p=4) versus milliseconds for the native
+implementation. That is fine — this decoder verifies a file once, it does not
+open vaults daily.
+
 ## Dependencies
 
-The same doctrine as the rest of Sealstone: **none**, beyond the Python standard library and a vendored Argon2id implementation carrying its own RFC 9106 test vectors.
+None. Python standard library only.
 
-A reference decoder that needs a package manager is a reference decoder that stops working.
+A reference decoder that needs a package manager is a reference decoder that stops working. AES and Argon2id are implemented here rather than imported for that reason, and both are validated against published known-answer vectors (FIPS-197, the GCM specification, RFC 9106).
+
+These implementations are **not constant time** and must not be used to protect data. They verify; they do not guard.
 
 ## Branches
 

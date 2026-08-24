@@ -18,6 +18,7 @@ network and no package manager.
 constant time and must not be used to protect data. ***
 """
 
+from . import fragment, otp
 from .envelope import Header, open_impression, seal
 from .errors import (
     BrokenSealError,
@@ -34,6 +35,8 @@ __version__ = "1.0.0-draft"
 
 __all__ = [
     "Header",
+    "otp",
+    "fragment",
     "open_impression",
     "seal",
     "parse",

@@ -29,13 +29,33 @@ vectors/      Test vector corpus, indexed by manifest.json
 decoder/      Reference decoder and the conformance suite
 ```
 
+## Recovering a vault
+
+If Sealstone is gone and you have a backup, this is the whole procedure:
+
+```
+cd decoder
+python3 -m sealstone_format inspect  ../backup.seal    # no passphrase needed
+python3 -m sealstone_format open     ../backup.seal --codes
+```
+
+`--codes` prints the current one-time code for each account, which is what
+actually logs you in. `--json` writes everything to stdout.
+
+If the vault was split among keepers, any threshold-many of them combine their
+sheets:
+
+```
+python3 -m sealstone_format combine sheet1.txt sheet2.txt sheet3.txt
+```
+
 ## Verifying an implementation
 
 ```
 cd decoder && python3 -m unittest discover -s tests -t .
 ```
 
-58 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
+81 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
 executable definition of what implementing this format means — any
 implementation, in any language, has to pass the same ten families.
 

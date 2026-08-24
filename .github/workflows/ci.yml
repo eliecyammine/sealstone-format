@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Assert no third-party dependencies
+        run: |
+          if ls requirements*.txt pyproject.toml setup.py 2>/dev/null | grep -q .; then
+            echo "This package installs nothing. A dependency file means that changed."
+            exit 1
+          fi
+          echo "No dependency files. Standard library only."
+
+      - name: Run tests
+        working-directory: decoder
+        run: python -m unittest discover -s tests -t . --verbose
+
+      - name: Assert the vector corpus regenerates identically
+        run: |
+          before=$(find vectors -name '*.seal' -o -name '*.json' | sort | xargs shasum -a 256 | shasum -a 256)
+          python3 vectors/generate.py
+          after=$(find vectors -name '*.seal' -o -name '*.json' | sort | xargs shasum -a 256 | shasum -a 256)
+          if [ "$before" != "$after" ]; then
+            echo "Regenerating the corpus produced different bytes."
+            echo "Either generation stopped being deterministic, or the encoder changed."
+            git --no-pager diff --stat
+            exit 1
+          fi
+          echo "Corpus is byte-identical after regeneration."
+
+  slow:
+    # Production Argon2 parameters in pure Python. Too slow for every push.
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run tests at production parameters
+        working-directory: decoder
+        env:
+          SEALSTONE_SLOW_TESTS: "1"
+        run: python -m unittest discover -s tests -t .

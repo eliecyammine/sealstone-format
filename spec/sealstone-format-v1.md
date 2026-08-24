@@ -266,6 +266,29 @@ That preservation rule is what makes forward compatibility real rather than aspi
 
 `rehearsedAt` is null until a real reconstruction has succeeded. Doc 13 §5.3 forbids the `armed` state until it is set.
 
+
+### 3.5 Identifiers
+
+Identifiers are strings of the form `<kind>_<body>`, where `kind` is one of
+`vlt`, `acc`, `itm`, `lnk`, `kpr`, `bnd` and `body` is 128 bits rendered in
+Crockford Base32. The prefix makes a dump readable and makes a
+copied-into-the-wrong-field identifier obvious.
+
+Two generation schemes, and which one applies is fixed by the kind:
+
+| Kind | Scheme | Reason |
+|---|---|---|
+| `vlt`, `acc`, `itm`, `lnk` | **Time-ordered** — the UUID version 7 layout: a 48-bit millisecond timestamp, the version and variant markers in their fixed positions, random elsewhere | They sort by creation, so a vault dump reads chronologically and a diff is meaningful |
+| `kpr`, `bnd` | **Fully random** | These appear in handover URLs. A timestamp there would tell whoever holds the link when the handover was configured |
+
+A reader MUST NOT infer meaning from an identifier beyond its kind prefix.
+The timestamp in a time-ordered identifier is a convenience for diagnostics,
+never a substitute for `createdAt`, which is the authoritative value.
+
+An implementation MAY use any identifier scheme it likes when writing, provided
+identifiers are unique within their collection. The scheme above is what this
+implementation writes and what a reader should expect in practice.
+
 ---
 
 ## 4. Handover bundles and fragments

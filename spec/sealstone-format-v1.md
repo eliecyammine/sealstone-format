@@ -235,10 +235,10 @@ Read as: *the Google account can be used to recover the bank account.* `method` 
 - `digits` between 6 and 10; `period` between 1 and 300; `counter` present if and only if `otpType == "hotp"`.
 - `secret` is valid Base32.
 - Unknown `type` values: **preserve the object verbatim and skip it.** Never silently discard — a decoder from an older version must not destroy data written by a newer one on round-trip.
-- Unknown top-level keys: preserve.
+- **Unknown keys: preserve, wherever they appear.** At the document root, and inside every account, item, link and keeper. §6 promises that a new optional field is a minor change which an older decoder "ignores and preserves", and a new optional field lands on an account or a keeper far more often than at the root. Preserving only the root would keep that promise in the one place it matters least.
 - Reject documents exceeding configured size and count ceilings, before allocation.
 
-That preservation rule is what makes forward compatibility real rather than aspirational.
+That preservation rule is what makes forward compatibility real rather than aspirational. It is also easy to leave half-implemented, because preserving unknown item types looks like the hard part and is not the whole of it. A language whose object mapping reads named fields will drop everything else by default and give no sign that it did. Family 03 of the corpus therefore carries an unknown key at the root *and* inside an account, a link and a keeper, so a decoder that implements only some of this fails a vector rather than shipping.
 
 ### 3.4 Keepers
 
@@ -426,7 +426,7 @@ Ship with the specification, and version them alongside it. **Built and passing*
 |---|---|---|---|
 | 01 | Empty vault | opens | — |
 | 02 | Single TOTP item | opens | — |
-| 03 | Full vault: every item type, three links, a keeper, and an unknown item type that must survive a round trip untouched | opens | — |
+| 03 | Full vault: every item type, three links, a keeper, an unknown item type, and unknown keys at the root and inside an account, a link and a keeper, all of which must survive a round trip untouched | opens | — |
 | 04 | NFC passphrase — precomposed and decomposed spellings must both open the same file | opens | 2 spellings |
 | 05 | Tamper: one bit flipped in each region of the file | **all must fail** | 15 |
 | 06 | Wrong passphrase, empty passphrase, and correct passphrase with trailing whitespace | **all must fail** | 3 |
@@ -447,7 +447,7 @@ Passphrases and secrets are stored as **hex-encoded UTF-8** so no implementer ha
 
 ## 8. Decisions, closed
 
-All five open decisions are resolved. The format may be frozen.
+All five open decisions are resolved, and the freeze conditions in 8.1 are met. The format is frozen.
 
 | # | Decision | Resolution |
 |---|---|---|
@@ -461,12 +461,16 @@ All five open decisions are resolved. The format may be frozen.
 
 The format is frozen — no layout change without a major version — once all of the following hold:
 
-- [ ] Vendored Argon2id passes every RFC 9106 vector.
+- [x] Vendored Argon2id passes every RFC 9106 vector.
 - [x] All ten test vector families in §7 exist and pass.
 - [x] The Python reference decoder passes every one of them.
-- [ ] The envelope has been reviewed by someone who did not write it.
+- [x] The envelope has been reviewed by someone who did not write it.
 
-Only then does storage or application code get written against it.
+**All four hold. The format is frozen as of 24 August 2026.** The layout in §2.1, the field meanings, and the parameter ranges do not change again without a major version, and every decoder that opens a v1 file today must keep opening it.
+
+The Argon2id condition was the last to be met in substance rather than on paper. An early implementation agreed with the RFC's own test vectors and was still wrong at every other parameter size, which no amount of cross-checking two implementations against each other could reveal, because both shared the same misreading. It is now checked against vectors produced by the reference implementation at eight parameter sets.
+
+What freezing does not claim: this has not been through an independent security audit. Freezing fixes the format so that files written today stay readable; it is not a statement that the design has been adversarially reviewed by a third party. Any such audit, when it happens, can still change the *implementations* freely — the format is what is fixed, not the code.
 
 ---
 

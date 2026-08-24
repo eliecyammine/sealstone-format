@@ -259,6 +259,56 @@ def build_tamper_family() -> dict:
     }
 
 
+def build_truncation_family() -> dict:
+    """Files cut short at every structurally interesting offset.
+
+    Truncation is a different failure from tampering: the bytes that survive
+    are genuine, so an implementation that reads before checking length hits an
+    index error rather than a message. Both are fail-closed; only one tells the
+    user anything.
+    """
+    family = "11-truncation"
+    plaintext = canonical(single_totp_vault())
+    blob = envelope.seal(plaintext, passphrase=PASSPHRASE,
+                         **FAST_KDF, **fixed_salt_and_nonce(family))
+    write(ROOT / family / "original.seal", blob)
+
+    offsets = {
+        "empty": 0,
+        "partial-magic": 3,
+        "magic-only": 7,
+        "mid-kdf-params": 11,
+        "before-salt-length": 20,
+        "mid-salt": 25,
+        "before-nonce-length": 37,
+        "mid-nonce": 44,
+        "before-reserved": 50,
+        "header-only": 52,
+        "mid-ciphertext": len(blob) - 20,
+        "missing-one-tag-byte": len(blob) - 1,
+    }
+
+    cases = []
+    for name, length in offsets.items():
+        filename = f"truncated-{name}.seal"
+        write(ROOT / family / filename, blob[:length])
+        cases.append({"name": name, "byteLength": length,
+                      "file": f"{family}/{filename}"})
+
+    return {
+        "id": family,
+        "description": (
+            "The same file cut short at each structurally interesting offset. "
+            "Every one must be refused with a clear error rather than an index "
+            "error, a crash, or a partial read."
+        ),
+        "kind": "open-fails",
+        "original": f"{family}/original.seal",
+        "passphraseUtf8Hex": PASSPHRASE.encode("utf-8").hex(),
+        "cases": cases,
+    }
+
+
 def build_wrong_passphrase_family() -> dict:
     family = "06-wrong-passphrase"
     plaintext = canonical(single_totp_vault())
@@ -528,6 +578,7 @@ def main() -> int:
         build_hostile_family(),
         build_shamir_family(),
         build_version_family(),
+        build_truncation_family(),
     ]
 
     if args.all:
@@ -550,6 +601,10 @@ def main() -> int:
         else:
             print("10-real-parameters is missing. Run with --all before "
                   "committing.", file=sys.stderr)
+
+    # Sorted rather than assembled in order, because the slow family is carried
+    # forward and appended last. The corpus asserts its own ordering.
+    families.sort(key=lambda family: family["id"])
 
     manifest = {
         "formatVersion": 1,

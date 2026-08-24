@@ -135,6 +135,12 @@ def validate(document: dict[str, Any]) -> dict[str, Any]:
         item_type = item.get("type")
         _require(isinstance(item_type, str), f"{where}: type must be a string")
 
+        # Optional, and only checked for shape. An item that has never been
+        # used simply does not carry it.
+        if "lastUsedAt" in item and item["lastUsedAt"] is not None:
+            _require(isinstance(item["lastUsedAt"], str) and item["lastUsedAt"],
+                     f"{where}: lastUsedAt must be an ISO 8601 timestamp")
+
         # Unknown types pass through untouched rather than being rejected.
         if item_type == "authenticator":
             _validate_authenticator(item, where)

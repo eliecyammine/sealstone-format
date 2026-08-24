@@ -193,6 +193,7 @@ The Map is computed entirely over `links`. Getting this separation right in v1 i
   "ordering": 0,
   "createdAt": "...",
   "modifiedAt": "...",
+  "lastUsedAt": "...",
 
   "secret": "BASE32SECRET",
   "algorithm": "SHA1",
@@ -202,6 +203,13 @@ The Map is computed entirely over `links`. Getting this separation right in v1 i
   "otpType": "totp"
 }
 ```
+
+`lastUsedAt` is optional and records when a credential was last used, which for
+an authenticator means the last time its code was copied. It exists to answer a
+question the user cannot otherwise answer: re-enrolling with a service leaves
+two codes for one account, only one of which still works, and the one being
+used weekly is not the one to delete. Writing it is optional, and a decoder
+that does not write it must still preserve one it reads.
 
 | `type` | Additional fields |
 |---|---|
@@ -413,6 +421,13 @@ Not a fallback. A designed artifact and a first-class export target.
 | New algorithm identifier | Minor | Refuses that file, decodes others |
 | Layout change | **Major** | **Refuses** |
 | Semantic change to an existing field | **Major** | **Refuses** |
+
+**A minor bump is for a field added after a version has shipped.** No release
+has happened, so optional fields added before the first one are simply part of
+v1 and carry no bump. The freeze in §8.1 covers the layout in §2.1, the meaning
+of existing fields, and the parameter ranges; an optional field touches none of
+them. Bumping the minor would signal "this may contain something you have not
+heard of" to a decoder population that does not exist yet.
 
 **Every version ever published must remain decodable by the current application, forever.** Migration tests run against a corpus containing at least one file from every released version, in `vectors/09-versions`.
 

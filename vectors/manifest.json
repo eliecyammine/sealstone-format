@@ -1,0 +1,416 @@
+{
+  "formatVersion": 1,
+  "corpusVersion": 1,
+  "description": "Test vectors for Sealstone Format v1. Any implementation claiming to read or write this format must pass every family here. Passphrases and secrets are hex-encoded so no consumer has to guess an encoding.",
+  "families": [
+    {
+      "id": "01-empty-vault",
+      "description": "A valid vault with no accounts, items or links.",
+      "kind": "open-succeeds",
+      "file": "01-empty-vault/impression.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "expectedPlaintext": "01-empty-vault/plaintext.json",
+      "expectedHeader": {
+        "formatMajor": 1,
+        "formatMinor": 0,
+        "kdfId": 1,
+        "aeadId": 1,
+        "kdfMemoryKiB": 64,
+        "kdfIterations": 1,
+        "kdfParallelism": 1,
+        "headerLength": 52
+      }
+    },
+    {
+      "id": "02-single-totp",
+      "description": "One account with one TOTP authenticator.",
+      "kind": "open-succeeds",
+      "file": "02-single-totp/impression.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "expectedPlaintext": "02-single-totp/plaintext.json",
+      "expectedHeader": {
+        "formatMajor": 1,
+        "formatMinor": 0,
+        "kdfId": 1,
+        "aeadId": 1,
+        "kdfMemoryKiB": 64,
+        "kdfIterations": 1,
+        "kdfParallelism": 1,
+        "headerLength": 52
+      }
+    },
+    {
+      "id": "03-full-vault",
+      "description": "Every item type, three links, one keeper, and one item of an unknown type that must survive a round trip untouched.",
+      "kind": "open-succeeds",
+      "file": "03-full-vault/impression.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "expectedPlaintext": "03-full-vault/plaintext.json",
+      "expectedHeader": {
+        "formatMajor": 1,
+        "formatMinor": 0,
+        "kdfId": 1,
+        "aeadId": 1,
+        "kdfMemoryKiB": 64,
+        "kdfIterations": 1,
+        "kdfParallelism": 1,
+        "headerLength": 52
+      }
+    },
+    {
+      "id": "04-nfc-passphrase",
+      "description": "Sealed with a precomposed passphrase. Both the precomposed and the decomposed spelling must open it, because the passphrase is NFC-normalised before key derivation. Without normalisation the same typed characters produce different keys on different platforms and the file becomes unopenable on one of them.",
+      "kind": "open-succeeds",
+      "file": "04-nfc-passphrase/impression.seal",
+      "expectedPlaintext": "04-nfc-passphrase/plaintext.json",
+      "passphraseUtf8Hex": "636166c3a9206e61c3af7665",
+      "equivalentPassphrasesUtf8Hex": [
+        "636166c3a9206e61c3af7665",
+        "63616665cc81206e6169cc887665"
+      ],
+      "expectedHeader": {
+        "formatMajor": 1,
+        "formatMinor": 0,
+        "kdfId": 1,
+        "aeadId": 1,
+        "kdfMemoryKiB": 64,
+        "kdfIterations": 1,
+        "kdfParallelism": 1,
+        "headerLength": 52
+      }
+    },
+    {
+      "id": "05-tamper",
+      "description": "One bit flipped in each region of the file. Every case must be rejected, and no case may return plaintext or mutate a vault.",
+      "kind": "open-fails",
+      "original": "05-tamper/original.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "cases": [
+        {
+          "region": "magic",
+          "byteOffset": 0,
+          "file": "05-tamper/tampered-magic.seal"
+        },
+        {
+          "region": "formatMajor",
+          "byteOffset": 7,
+          "file": "05-tamper/tampered-formatMajor.seal"
+        },
+        {
+          "region": "formatMinor",
+          "byteOffset": 8,
+          "file": "05-tamper/tampered-formatMinor.seal"
+        },
+        {
+          "region": "kdfId",
+          "byteOffset": 9,
+          "file": "05-tamper/tampered-kdfId.seal"
+        },
+        {
+          "region": "aeadId",
+          "byteOffset": 10,
+          "file": "05-tamper/tampered-aeadId.seal"
+        },
+        {
+          "region": "kdfMemory",
+          "byteOffset": 11,
+          "file": "05-tamper/tampered-kdfMemory.seal"
+        },
+        {
+          "region": "kdfIterations",
+          "byteOffset": 15,
+          "file": "05-tamper/tampered-kdfIterations.seal"
+        },
+        {
+          "region": "kdfParallelism",
+          "byteOffset": 19,
+          "file": "05-tamper/tampered-kdfParallelism.seal"
+        },
+        {
+          "region": "saltLen",
+          "byteOffset": 20,
+          "file": "05-tamper/tampered-saltLen.seal"
+        },
+        {
+          "region": "salt",
+          "byteOffset": 21,
+          "file": "05-tamper/tampered-salt.seal"
+        },
+        {
+          "region": "nonceLen",
+          "byteOffset": 37,
+          "file": "05-tamper/tampered-nonceLen.seal"
+        },
+        {
+          "region": "nonce",
+          "byteOffset": 38,
+          "file": "05-tamper/tampered-nonce.seal"
+        },
+        {
+          "region": "reserved",
+          "byteOffset": 50,
+          "file": "05-tamper/tampered-reserved.seal"
+        },
+        {
+          "region": "ciphertext",
+          "byteOffset": -20,
+          "file": "05-tamper/tampered-ciphertext.seal"
+        },
+        {
+          "region": "tag",
+          "byteOffset": -1,
+          "file": "05-tamper/tampered-tag.seal"
+        }
+      ]
+    },
+    {
+      "id": "06-wrong-passphrase",
+      "description": "Correct file, wrong passphrase. Must fail exactly as a tampered file does — an authenticated cipher cannot tell the two apart, and an implementation that distinguishes them is leaking.",
+      "kind": "open-fails",
+      "file": "06-wrong-passphrase/impression.seal",
+      "cases": [
+        {
+          "reason": "wrong passphrase",
+          "passphraseUtf8Hex": "6e6f74207468652070617373706872617365"
+        },
+        {
+          "reason": "empty passphrase",
+          "passphraseUtf8Hex": ""
+        },
+        {
+          "reason": "correct passphrase with trailing space",
+          "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c6520"
+        }
+      ]
+    },
+    {
+      "id": "07-hostile-parameters",
+      "description": "Files demanding resources outside the permitted ranges. Each must be refused before any memory is allocated and before the key derivation function is called. An implementation that attempts these will be terminated by the operating system, which a user cannot distinguish from data loss.",
+      "kind": "reject-before-allocation",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "limits": {
+        "kdfMemoryKiB": {
+          "min": "8 * parallelism",
+          "max": 1048576
+        },
+        "kdfIterations": {
+          "min": 1,
+          "max": 16
+        },
+        "kdfParallelism": {
+          "min": 1,
+          "max": 16
+        }
+      },
+      "cases": [
+        {
+          "name": "memory-1TiB",
+          "file": "07-hostile-parameters/memory-1TiB.seal",
+          "reason": "memory above the permitted ceiling"
+        },
+        {
+          "name": "memory-zero",
+          "file": "07-hostile-parameters/memory-zero.seal",
+          "reason": "memory below the permitted floor"
+        },
+        {
+          "name": "iterations-huge",
+          "file": "07-hostile-parameters/iterations-huge.seal",
+          "reason": "iteration count above the permitted ceiling"
+        },
+        {
+          "name": "iterations-zero",
+          "file": "07-hostile-parameters/iterations-zero.seal",
+          "reason": "iteration count of zero"
+        },
+        {
+          "name": "parallelism-zero",
+          "file": "07-hostile-parameters/parallelism-zero.seal",
+          "reason": "parallelism of zero"
+        },
+        {
+          "name": "parallelism-max",
+          "file": "07-hostile-parameters/parallelism-max.seal",
+          "reason": "parallelism above the permitted ceiling"
+        }
+      ]
+    },
+    {
+      "id": "08-shamir-3-of-5",
+      "description": "A 3-of-5 split over GF(2^8) with the AES polynomial 0x11B. Every three-index subset must reconstruct the secret exactly. No two-index subset may, and no partial information may be derivable from one.",
+      "kind": "shamir",
+      "secretHex": "ca9926dce530e268d6f35074bcc0a668c3f74d97627e81c9f81b808bd8ca2ca8",
+      "threshold": 3,
+      "total": 5,
+      "shares": [
+        {
+          "index": 1,
+          "shareHex": "47cf476c853bcc3a06a21aa26a9b162ea4b5449abdfe9a37f45dd3f9fa4f1f73"
+        },
+        {
+          "index": 2,
+          "shareHex": "02d687cef4eb16bd6eb198b63d42e7e2bbe7fba0e742fa72be02f2f6f5fed7db"
+        },
+        {
+          "index": 3,
+          "shareHex": "8f80e67e94e038efbee0d260eb1957a4dca5f2ad38c2e18cb244a184d77be400"
+        },
+        {
+          "index": 4,
+          "shareHex": "48a6e847ae848706b1dab0247d0fcc7fddb19c4df39a58cf174b19233d36831b"
+        },
+        {
+          "index": 5,
+          "shareHex": "c5f089f7ce8fa954618bfaf2ab547c39baf395402c1a43311b0d4a511fb3b0c0"
+        }
+      ],
+      "mustReconstruct": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          2,
+          4
+        ],
+        [
+          1,
+          2,
+          5
+        ],
+        [
+          1,
+          3,
+          4
+        ],
+        [
+          1,
+          3,
+          5
+        ],
+        [
+          1,
+          4,
+          5
+        ],
+        [
+          2,
+          3,
+          4
+        ],
+        [
+          2,
+          3,
+          5
+        ],
+        [
+          2,
+          4,
+          5
+        ],
+        [
+          3,
+          4,
+          5
+        ]
+      ],
+      "mustNotReconstruct": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "id": "09-versions",
+      "description": "One file per released format version. Every version ever published must remain openable by the current implementation, forever. This family grows and never shrinks.",
+      "kind": "versions",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "entries": [
+        {
+          "version": "1.0",
+          "file": "09-versions/v1.0.seal",
+          "expectedPlaintext": "09-versions/v1.0-plaintext.json",
+          "mustOpen": true
+        },
+        {
+          "version": "1.9",
+          "file": "09-versions/v1.9-sealed.seal",
+          "expectedPlaintext": "09-versions/v1.0-plaintext.json",
+          "mustOpen": true,
+          "note": "Sealed with minor version 9. A reader must accept an unknown minor version rather than refusing it, so this must open."
+        },
+        {
+          "version": "1.9",
+          "file": "09-versions/v1.9-patched-minor.seal",
+          "mustOpen": false,
+          "failsOn": "authenticationTag",
+          "note": "The minor byte was altered after sealing. It must be rejected because the header is authenticated, not because the version is unknown. Both facts matter: reject it, but for the right reason."
+        },
+        {
+          "version": "2.0",
+          "file": "09-versions/v2.0-unknown-major.seal",
+          "mustOpen": false,
+          "note": "An unknown major version must be refused before anything else."
+        }
+      ]
+    },
+    {
+      "id": "10-real-parameters",
+      "description": "The parameters shipped in production: 64 MiB, 3 iterations, parallelism 4. Slow to verify in a scripting language, which is the point of the parameters.",
+      "kind": "open-succeeds",
+      "slow": true,
+      "file": "10-real-parameters/impression.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "expectedPlaintext": "10-real-parameters/plaintext.json",
+      "expectedHeader": {
+        "formatMajor": 1,
+        "formatMinor": 0,
+        "kdfId": 1,
+        "aeadId": 1,
+        "kdfMemoryKiB": 65536,
+        "kdfIterations": 3,
+        "kdfParallelism": 4,
+        "headerLength": 52
+      }
+    }
+  ]
+}

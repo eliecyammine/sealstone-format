@@ -24,6 +24,22 @@ In priority order. Where they conflict, the higher one wins.
 
 The file a user gets when they seal a backup. Extension `.seal`, UTI `app.sealstone.impression`.
 
+### 2.0 On the `.seal` extension
+
+**File extensions are not owned, registered, or allocated by anyone.** There is no authority to apply to and nothing to reserve. The question is only whether a collision is likely and what happens if one occurs.
+
+**Checked, August 2026.** No significant modern claimant. Oracle IRM — the most commonly cited "sealed content" product — does **not** use `.seal`; it prefixes `s` to the original extension, producing `.sdoc`, `.sxls`, `.stxt`. The only historical user found was SEAL, a 32-bit DOS GUI, long dead. Directory sites listing `.seal` generically are indexing that.
+
+**How Apple resolves a collision if one ever arises.** UTIs declared in the system library take precedence over third-party ones. Between two third-party apps, macOS resolves arbitrarily, first-come, **without warning the user**. The user's only remedy is Open With. This is worth knowing but is not a reason to avoid the extension — it is true of every non-system extension.
+
+**Three mitigations, already in the design:**
+
+1. **The UTI is genuinely unique.** `app.sealstone.impression` is reverse-DNS under a domain we control. The *identifier* cannot collide even though the extension theoretically can.
+2. **The magic bytes are authoritative, not the extension.** A file beginning `SEALSTN` is a Sealstone Impression regardless of what it is named, and §2.4 step 1 verifies that before anything else. A user who renames a backup loses nothing.
+3. **Declare `UTTypeConformsTo: public.data`** so the system treats it sensibly even where no app claims it.
+
+**Decision: keep `.seal`.** Short, readable, on-brand, and — for a file someone may need to recognise in a folder a decade from now — meaningfully better than `.sealstone`. Recorded here as a decision made on evidence rather than an assumption never checked.
+
 ### 2.1 Layout
 
 All integers big-endian. The entire header is passed as **associated authenticated data** to the AEAD, so any modification to the version, the algorithm identifiers, or the KDF parameters is detected on open.
@@ -73,13 +89,13 @@ This is **RFC 9106's own second recommended parameter set**, specified for memor
 
 Parameters are recorded in the file, so an old backup opens with the parameters it was written with, and new backups can strengthen them without a format change.
 
-**Ceilings, normative.** A decoder MUST reject before allocating anything:
+**Parameter ranges, normative.** A decoder MUST reject a file whose KDF parameters fall outside these ranges, before allocating anything. The floors matter as much as the ceilings: zero iterations or too little memory is not a weak Argon2 input, it is an invalid one (RFC 9106 requires `m ≥ 8p`, `t ≥ 1`, `p ≥ 1`).
 
-| Parameter | Hard reject above | Reason |
+| Parameter | Permitted range | Reason |
 |---|---|---|
-| `kdfMemoryKiB` | `1048576` (1 GiB) | A hostile file must not be able to demand unbounded memory |
-| `kdfIterations` | `16` | Beyond this is a denial-of-service disguised as security |
-| `kdfParallelism` | `16` | — |
+| `kdfMemoryKiB` | `8 × kdfParallelism` to `1048576` (1 GiB) | Below the floor is not a valid Argon2 input; above the ceiling, a hostile file can demand unbounded memory |
+| `kdfIterations` | `1` to `16` | Beyond the ceiling is a denial-of-service disguised as security |
+| `kdfParallelism` | `1` to `16` | — |
 
 Additionally, before attempting a derivation the implementation MUST check available memory and, if insufficient, **fail with a clear message rather than attempt and be terminated**. On iOS an app that allocates beyond its budget is killed by the system, which to the user is indistinguishable from data loss.
 
@@ -101,7 +117,7 @@ Because the salt is fresh per file, the key is fresh per file, and each key is u
 2. Refuse unknown `formatMajor`.
 3. Refuse unknown `kdfId` or `aeadId`.
 4. Validate `reserved == 0`.
-5. Sanity-check KDF parameters against ceilings — a hostile file must not be able to demand 64 GiB of memory. **Reject rather than attempt.**
+5. Sanity-check KDF parameters against the permitted ranges — a hostile file must not be able to demand 64 GiB of memory, or feed zero iterations to the KDF. **Reject rather than attempt.**
 6. Derive the key.
 7. AEAD-decrypt with the header as AAD. **Any tag failure means the seal is broken. Stop. Mutate nothing.**
 8. Parse the plaintext as UTF-8 JSON.
@@ -250,6 +266,29 @@ That preservation rule is what makes forward compatibility real rather than aspi
 
 `rehearsedAt` is null until a real reconstruction has succeeded. Doc 13 §5.3 forbids the `armed` state until it is set.
 
+
+### 3.5 Identifiers
+
+Identifiers are strings of the form `<kind>_<body>`, where `kind` is one of
+`vlt`, `acc`, `itm`, `lnk`, `kpr`, `bnd` and `body` is 128 bits rendered in
+Crockford Base32. The prefix makes a dump readable and makes a
+copied-into-the-wrong-field identifier obvious.
+
+Two generation schemes, and which one applies is fixed by the kind:
+
+| Kind | Scheme | Reason |
+|---|---|---|
+| `vlt`, `acc`, `itm`, `lnk` | **Time-ordered** — the UUID version 7 layout: a 48-bit millisecond timestamp, the version and variant markers in their fixed positions, random elsewhere | They sort by creation, so a vault dump reads chronologically and a diff is meaningful |
+| `kpr`, `bnd` | **Fully random** | These appear in handover URLs. A timestamp there would tell whoever holds the link when the handover was configured |
+
+A reader MUST NOT infer meaning from an identifier beyond its kind prefix.
+The timestamp in a time-ordered identifier is a convenience for diagnostics,
+never a substitute for `createdAt`, which is the authoritative value.
+
+An implementation MAY use any identifier scheme it likes when writing, provided
+identifiers are unique within their collection. The scheme above is what this
+implementation writes and what a reader should expect in practice.
+
 ---
 
 ## 4. Handover bundles and fragments
@@ -288,9 +327,9 @@ Offset  Size  Field       Notes
 29+L    4     checksum    CRC-32 of bytes 0..29+L-1
 ```
 
-`index` is never 0, because *f(0)* is the secret itself.
+`index` is never 0, because *f(0)* is the secret itself. As in §2.1, all integers are big-endian.
 
-The checksum detects transcription error, not tampering. It is not a security control and the specification says so, because a checksum in a security format that is not labelled invites the wrong assumption.
+The checksum is the CRC-32 of IEEE 802.3 — polynomial `0x04C11DB7`, reflected, initial value and final XOR `0xFFFFFFFF`; the same function zlib, gzip and PNG use — stored big-endian. It detects transcription error, not tampering. It is not a security control and the specification says so, because a checksum in a security format that is not labelled invites the wrong assumption.
 
 ### 4.3 Fragment paper form
 
@@ -355,19 +394,28 @@ Not a fallback. A designed artifact and a first-class export target.
 
 ## 7. Test vectors
 
-Ship with the specification, and version them alongside it. Required:
+Ship with the specification, and version them alongside it. **Built and passing** — `vectors/` in `sealstone-format`, regenerated deterministically by `vectors/generate.py`, indexed by `manifest.json`.
 
-1. Empty vault, default parameters, known passphrase → known ciphertext.
-2. Single TOTP item → known plaintext JSON.
-3. Full vault: every item type, links, keepers.
-4. Non-ASCII passphrase requiring NFC normalisation.
-5. Tampered file, one flipped bit in each of: magic, version, KDF parameters, salt, nonce, ciphertext, tag. **All seven must fail to open.**
-6. Wrong passphrase.
-7. Hostile KDF parameters — must be rejected, not attempted.
-8. A 3-of-5 Shamir split with all ten possible reconstructing subsets, plus verification that every 2-share subset yields nothing.
-9. A file from each prior format version.
+| # | Family | Kind | Cases |
+|---|---|---|---|
+| 01 | Empty vault | opens | — |
+| 02 | Single TOTP item | opens | — |
+| 03 | Full vault: every item type, three links, a keeper, and an unknown item type that must survive a round trip untouched | opens | — |
+| 04 | NFC passphrase — precomposed and decomposed spellings must both open the same file | opens | 2 spellings |
+| 05 | Tamper: one bit flipped in each region of the file | **all must fail** | 15 |
+| 06 | Wrong passphrase, empty passphrase, and correct passphrase with trailing whitespace | **all must fail** | 3 |
+| 07 | Hostile KDF parameters, above and below every limit | **rejected before allocation** | 6 |
+| 08 | 3-of-5 Shamir: every reconstructing subset listed, every subset one share short of the threshold listed | both directions | 10 + 10 |
+| 09 | One file per released version, plus a genuinely sealed forward-minor file, a patched-minor file, and an unknown-major file | mixed | 4 |
+| 10 | Production parameters — 64 MiB, t=3, p=4 | opens | marked slow |
 
-**The reference decoder must pass all of them**, and it is written in a language that is not Swift — Python is the recommendation — precisely so that it cannot share a bug with the implementation. It is published alongside the specification. It is the only thing that turns the ownership claim from an assertion into a demonstration.
+**Both directions of the minor-version rule are covered.** A file *sealed* with an unknown minor version must open; a file whose minor byte was *patched* after sealing must fail — and must fail on the authentication tag rather than on version grounds, since the version itself is legal. Only the first can be produced by sealing, and only the second by tampering, so both vectors are needed.
+
+**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; and the limits declared in the manifest must match the implementation's constants.
+
+Passphrases and secrets are stored as **hex-encoded UTF-8** so no implementer has to infer an encoding — which matters most for family 04, where the whole point is that two byte sequences must derive the same key.
+
+**The reference decoder passes all of them.** It is written in Python rather than Swift precisely so it cannot share a bug with the implementation it verifies, and it is published alongside the specification. It is the only thing that turns the ownership claim from an assertion into a demonstration.
 
 ---
 
@@ -381,15 +429,15 @@ All five open decisions are resolved. The format may be frozen.
 | 2 | **AEAD default** | **AES-256-GCM** (`aeadId = 0x01`). Hardware-accelerated on all supported Apple hardware. `aeadId` keeps the choice reversible; ChaCha20-Poly1305 stays specified at `0x02` and unused |
 | 3 | **Passphrase on the Paper Impression** | **Excluded by default.** Includable by explicit user choice, with the consequence stated in the same breath: including it makes the sheet self-sufficient *and* makes the sheet a single point of failure |
 | 4 | **Vault-at-rest store format** | **Reuse this envelope.** One format is one thing to get right, one thing to audit, one thing to document, and one thing to migrate. The at-rest key comes from the Keychain rather than a passphrase, so `kdfId = 0x00` (`none`) is reserved for that case and the KDF parameter fields are zero |
-| 5 | **Parameter ceilings** | **Specified normatively in §2.2.** 1 GiB / 16 / 16, plus a mandatory available-memory check before derivation |
+| 5 | **Parameter ranges** | **Specified normatively in §2.2.** Floors and ceilings: `8p`–1 GiB, 1–16, 1–16, plus a mandatory available-memory check before derivation |
 
 ### 8.1 Freeze conditions
 
 The format is frozen — no layout change without a major version — once all of the following hold:
 
 - [ ] Vendored Argon2id passes every RFC 9106 vector.
-- [ ] All nine test vector families in §7 exist and pass.
-- [ ] The Python reference decoder opens every one of them.
+- [x] All ten test vector families in §7 exist and pass.
+- [x] The Python reference decoder passes every one of them.
 - [ ] The envelope has been reviewed by someone who did not write it.
 
 Only then does storage or application code get written against it.

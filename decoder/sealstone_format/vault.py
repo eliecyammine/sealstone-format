@@ -172,8 +172,21 @@ def validate(document: dict[str, Any]) -> dict[str, Any]:
     return document
 
 
+# Checked against the raw bytes before parsing. A document large enough to
+# matter is refused before it is turned into Python objects, which is where the
+# real allocation happens.
+MAX_DOCUMENT_BYTES = 64 * 1024 * 1024
+
+
 def parse(plaintext: bytes) -> dict[str, Any]:
     """Parse and validate the plaintext of an Impression."""
+    if len(plaintext) > MAX_DOCUMENT_BYTES:
+        raise InvalidVaultError(
+            f"This vault document is {len(plaintext) // (1024 * 1024)} MiB, "
+            f"above the {MAX_DOCUMENT_BYTES // (1024 * 1024)} MiB limit. "
+            "Refusing to parse it."
+        )
+
     try:
         document = json.loads(plaintext.decode("utf-8"))
     except UnicodeDecodeError as exc:

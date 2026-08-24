@@ -104,28 +104,37 @@ def _parse_header(data: bytes) -> tuple[Header, int]:
             "(this decoder implements AES-256-GCM only)"
         )
 
-    memory_kib, iterations = struct.unpack(">II", data[offset:offset + 8])
-    offset += 8
-    parallelism = data[offset]
-    offset += 1
+    def need(count: int) -> bytes:
+        """Read `count` bytes, or say plainly that the file is too short."""
+        nonlocal offset
+        if len(data) < offset + count:
+            raise NotAnImpressionError(
+                f"the file is truncated — it ends after {len(data)} bytes but "
+                f"the header needs at least {offset + count}"
+            )
+        chunk = data[offset:offset + count]
+        offset += count
+        return chunk
 
-    salt_length = data[offset]
-    offset += 1
-    salt = data[offset:offset + salt_length]
-    offset += salt_length
+    memory_kib, iterations = struct.unpack(">II", need(8))
+    parallelism = need(1)[0]
 
-    nonce_length = data[offset]
-    offset += 1
-    nonce = data[offset:offset + nonce_length]
-    offset += nonce_length
+    salt_length = need(1)[0]
+    salt = need(salt_length)
 
-    reserved = data[offset:offset + 2]
-    offset += 2
-    if reserved != b"\x00\x00":
+    nonce_length = need(1)[0]
+    nonce = need(nonce_length)
+
+    if need(2) != b"\x00\x00":
         raise NotAnImpressionError("reserved bytes are not zero")
 
-    if len(salt) != salt_length or len(nonce) != nonce_length:
-        raise NotAnImpressionError("header is truncated")
+    if kdf_id == KDF_NONE:
+        if (memory_kib, iterations, parallelism) != (0, 0, 0):
+            raise NotAnImpressionError(
+                "this file declares no key derivation function but carries "
+                "KDF parameters, which the format forbids. It was not written "
+                "by a conforming implementation."
+            )
 
     # Every KDF parameter is range-checked here, before any allocation and
     # before the value reaches the derivation function. Out of range means the
@@ -176,6 +185,8 @@ def _derive_key(header: Header, passphrase: str | None,
     import unicodedata
     normalised = unicodedata.normalize("NFC", passphrase).encode("utf-8")
 
+    _check_available_memory(header.kdf_memory_kib)
+
     return argon2.hash_raw(
         password=normalised,
         salt=header.salt,
@@ -185,6 +196,35 @@ def _derive_key(header: Header, passphrase: str | None,
         tag_length=32,
         type_=argon2.TYPE_ID,
     )
+
+
+# Pure Python holds each 1 KiB Argon2 block as a list of 128 Python integers,
+# which costs several times the nominal figure. Measured at roughly 6x.
+PYTHON_MEMORY_MULTIPLIER = 6
+
+
+def _check_available_memory(memory_kib: int) -> None:
+    """Refuse a derivation the machine cannot complete.
+
+    Being killed by the operating system part-way through is indistinguishable
+    from data loss to whoever is trying to open their backup. A clear refusal
+    is worth more than an optimistic attempt.
+    """
+    needed_bytes = memory_kib * 1024 * PYTHON_MEMORY_MULTIPLIER
+
+    try:
+        import resource
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        available = os.sysconf("SC_AVPHYS_PAGES") * page_size
+    except (ImportError, ValueError, OSError, AttributeError):
+        return  # Cannot tell. Proceed rather than refuse on no evidence.
+
+    if available and needed_bytes > available:
+        raise HostileParametersError(
+            f"Opening this file needs about {needed_bytes // (1024 * 1024)} MiB "
+            f"and only {available // (1024 * 1024)} MiB is free. Close some "
+            "programs and try again, or open it with the native implementation."
+        )
 
 
 def seal(plaintext: bytes, *, passphrase: str | None = None,

@@ -97,6 +97,8 @@ Parameters are recorded in the file, so an old backup opens with the parameters 
 | `kdfIterations` | `1` to `16` | Beyond the ceiling is a denial-of-service disguised as security |
 | `kdfParallelism` | `1` to `16` | — |
 
+A decoder MUST also reject a truncated file with a message rather than an index error. Every field read past the magic bytes needs a length check, and the corpus family 11 exercises each offset.
+
 Additionally, before attempting a derivation the implementation MUST check available memory and, if insufficient, **fail with a clear message rather than attempt and be terminated**. On iOS an app that allocates beyond its budget is killed by the system, which to the user is indistinguishable from data loss.
 
 **Unicode normalisation is mandatory and is a real interoperability trap.** A passphrase containing a composed character must derive the same key regardless of which normalisation form the entering platform produced. NFC, always, on write and on read.
@@ -115,7 +117,7 @@ Because the salt is fresh per file, the key is fresh per file, and each key is u
 
 1. Read and verify `magic`. Refuse otherwise.
 2. Refuse unknown `formatMajor`.
-3. Refuse unknown `kdfId` or `aeadId`.
+3. Refuse unknown `kdfId` or `aeadId`. When `kdfId` is `0x00`, refuse unless `kdfMemoryKiB`, `kdfIterations` and `kdfParallelism` are all zero — the authenticated header detects a file altered after sealing, but not one written this way.
 4. Validate `reserved == 0`.
 5. Sanity-check KDF parameters against the permitted ranges — a hostile file must not be able to demand 64 GiB of memory, or feed zero iterations to the KDF. **Reject rather than attempt.**
 6. Derive the key.
@@ -137,7 +139,7 @@ The plaintext inside the envelope: **UTF-8 JSON**. Chosen deliberately over a bi
 ```json
 {
   "formatVersion": 1,
-  "vaultId": "550e8400-e29b-41d4-a716-446655440000",
+  "vaultId": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
   "createdAt": "2026-08-24T10:00:00Z",
   "updatedAt": "2026-08-24T11:30:00Z",
   "accounts": [],
@@ -336,7 +338,7 @@ The checksum is the CRC-32 of IEEE 802.3 — polynomial `0x04C11DB7`, reflected,
 For hand transcription, a fragment is encoded in **Crockford Base32** — case-insensitive, and excludes `I`, `L`, `O` and `U` precisely because those are the characters people mistranscribe. Grouped in fives, with the set identifier and the `k`-of-`n` printed in plain language alongside:
 
 ```
-Sealstone fragment 2 of 5 — any 3 open the vault
+Sealstone fragment 2 of 5 — any 3 open it together
 Set 4F3A-9C21
 
   H8K2M  4NP7Q  R9T3V  W5X8Y  Z2B6C
@@ -345,6 +347,23 @@ Set 4F3A-9C21
 ```
 
 **Crockford decoding is lenient by design:** `I` and `l` map to `1`, `O` maps to `0`, and case is ignored. This is the difference between a keeper who succeeds and a keeper who gives up.
+
+### 4.35 What a keeper must hold
+
+A fragment set reconstructs the **bundle key**. It does not carry the bundle.
+
+The sealed handover bundle is an ordinary Impression of a few kilobytes, and no
+amount of it can be transcribed from paper. Every keeper therefore receives two
+things:
+
+| Item | Form | Identical across keepers? |
+|---|---|---|
+| The sealed handover bundle | A `.seal` file | **Yes.** It is ciphertext and opens for nobody without *k* fragments |
+| Their fragment | Binary file or printed sheet | No. One per keeper |
+
+Distributing fragments without the bundle produces a handover that fails at the
+only moment it is used. An implementation MUST track both and MUST NOT report a
+handover as armed until every keeper holds both.
 
 ### 4.4 Rotation, and what it cannot do
 

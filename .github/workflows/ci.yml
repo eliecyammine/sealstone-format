@@ -47,8 +47,10 @@ jobs:
           echo "Corpus is byte-identical after regeneration."
 
   slow:
-    # Production Argon2 parameters in pure Python. Too slow for every push.
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    # Production Argon2 parameters in pure Python. Slow, so it runs after the
+    # fast job rather than in parallel with it — but it does run, on every
+    # push. The parameters that ship should not be the least tested thing here.
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

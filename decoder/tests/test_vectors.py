@@ -152,6 +152,22 @@ class TestOpenFails(unittest.TestCase):
         self.assertEqual(required - regions, set(),
                          "tamper family does not cover every region of the file")
 
+    def test_every_truncation_is_rejected_cleanly(self):
+        family = next(f for f in families_of_kind("open-fails")
+                      if f["id"] == "11-truncation")
+        passphrase = passphrase_of(family)
+
+        # The untouched file must open, or the family proves nothing.
+        envelope.open_impression((VECTORS / family["original"]).read_bytes(),
+                                 passphrase=passphrase)
+
+        for case in family["cases"]:
+            with self.subTest(truncation=case["name"]):
+                blob = (VECTORS / case["file"]).read_bytes()
+                # A format error, not an IndexError or a struct error.
+                with self.assertRaises(SealstoneFormatError):
+                    envelope.open_impression(blob, passphrase=passphrase)
+
     def test_wrong_passphrases_are_rejected(self):
         family = next(f for f in families_of_kind("open-fails")
                       if f["id"] == "06-wrong-passphrase")

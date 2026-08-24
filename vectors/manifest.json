@@ -411,6 +411,75 @@
         "kdfParallelism": 4,
         "headerLength": 52
       }
+    },
+    {
+      "id": "11-truncation",
+      "description": "The same file cut short at each structurally interesting offset. Every one must be refused with a clear error rather than an index error, a crash, or a partial read.",
+      "kind": "open-fails",
+      "original": "11-truncation/original.seal",
+      "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",
+      "cases": [
+        {
+          "name": "empty",
+          "byteLength": 0,
+          "file": "11-truncation/truncated-empty.seal"
+        },
+        {
+          "name": "partial-magic",
+          "byteLength": 3,
+          "file": "11-truncation/truncated-partial-magic.seal"
+        },
+        {
+          "name": "magic-only",
+          "byteLength": 7,
+          "file": "11-truncation/truncated-magic-only.seal"
+        },
+        {
+          "name": "mid-kdf-params",
+          "byteLength": 11,
+          "file": "11-truncation/truncated-mid-kdf-params.seal"
+        },
+        {
+          "name": "before-salt-length",
+          "byteLength": 20,
+          "file": "11-truncation/truncated-before-salt-length.seal"
+        },
+        {
+          "name": "mid-salt",
+          "byteLength": 25,
+          "file": "11-truncation/truncated-mid-salt.seal"
+        },
+        {
+          "name": "before-nonce-length",
+          "byteLength": 37,
+          "file": "11-truncation/truncated-before-nonce-length.seal"
+        },
+        {
+          "name": "mid-nonce",
+          "byteLength": 44,
+          "file": "11-truncation/truncated-mid-nonce.seal"
+        },
+        {
+          "name": "before-reserved",
+          "byteLength": 50,
+          "file": "11-truncation/truncated-before-reserved.seal"
+        },
+        {
+          "name": "header-only",
+          "byteLength": 52,
+          "file": "11-truncation/truncated-header-only.seal"
+        },
+        {
+          "name": "mid-ciphertext",
+          "byteLength": 657,
+          "file": "11-truncation/truncated-mid-ciphertext.seal"
+        },
+        {
+          "name": "missing-one-tag-byte",
+          "byteLength": 676,
+          "file": "11-truncation/truncated-missing-one-tag-byte.seal"
+        }
+      ]
     }
   ]
 }

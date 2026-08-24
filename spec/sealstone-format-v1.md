@@ -371,17 +371,26 @@ Not a fallback. A designed artifact and a first-class export target.
 
 ## 7. Test vectors
 
-Ship with the specification, and version them alongside it. Required:
+Ship with the specification, and version them alongside it. **Built and passing** — `vectors/` in `sealstone-format`, regenerated deterministically by `vectors/generate.py`, indexed by `manifest.json`.
 
-1. Empty vault, default parameters, known passphrase → known ciphertext.
-2. Single TOTP item → known plaintext JSON.
-3. Full vault: every item type, links, keepers.
-4. Non-ASCII passphrase requiring NFC normalisation.
-5. Tampered file, one flipped bit in each of: magic, version, KDF parameters, salt, nonce, ciphertext, tag. **All seven must fail to open.**
-6. Wrong passphrase.
-7. Hostile KDF parameters — must be rejected, not attempted.
-8. A 3-of-5 Shamir split with all ten possible reconstructing subsets, plus verification that every 2-share subset yields nothing.
-9. A file from each prior format version.
+| # | Family | Kind | Cases |
+|---|---|---|---|
+| 01 | Empty vault | opens | — |
+| 02 | Single TOTP item | opens | — |
+| 03 | Full vault: every item type, three links, a keeper, and an unknown item type that must survive a round trip untouched | opens | — |
+| 04 | NFC passphrase — precomposed and decomposed spellings must both open the same file | opens | 2 spellings |
+| 05 | Tamper: one bit flipped in each region of the file | **all must fail** | 12 |
+| 06 | Wrong passphrase, empty passphrase, and correct passphrase with trailing whitespace | **all must fail** | 3 |
+| 07 | Hostile KDF parameters, above and below every limit | **rejected before allocation** | 6 |
+| 08 | 3-of-5 Shamir: every reconstructing subset listed, every insufficient subset listed | both directions | 10 + 10 |
+| 09 | One file per released version, plus unknown-minor and unknown-major | mixed | 3 |
+| 10 | Production parameters — 64 MiB, t=3, p=4 | opens | marked slow |
+
+**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; and the limits declared in the manifest must match the implementation's constants.
+
+Passphrases and secrets are stored as **hex-encoded UTF-8** so no implementer has to infer an encoding — which matters most for family 04, where the whole point is that two byte sequences must derive the same key.
+
+**The reference decoder passes all of them**, and it is written in Python rather than Swift precisely so it cannot share a bug with the implementation it verifies.
 
 **The reference decoder must pass all of them**, and it is written in a language that is not Swift — Python is the recommendation — precisely so that it cannot share a bug with the implementation. It is published alongside the specification. It is the only thing that turns the ownership claim from an assertion into a demonstration.
 

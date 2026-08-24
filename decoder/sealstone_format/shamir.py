@@ -52,11 +52,16 @@ def _div(a: int, b: int) -> int:
 # ---------------------------------------------------------------- split
 
 
-def split(secret: bytes, threshold: int, shares: int) -> list[tuple[int, bytes]]:
+def split(secret: bytes, threshold: int, shares: int,
+          rng=None) -> list[tuple[int, bytes]]:
     """Split `secret` into `shares` fragments, any `threshold` of which recombine.
 
     Returns (index, share) pairs. Index is the x-coordinate and is never zero,
     since f(0) is the secret.
+
+    `rng` returns a random byte and defaults to a cryptographically secure
+    source. Override it only to reproduce fixed test vectors; a predictable
+    source here destroys the security of the split entirely.
     """
     if not 2 <= threshold <= shares:
         raise ValueError("need 2 <= threshold <= shares")
@@ -65,11 +70,15 @@ def split(secret: bytes, threshold: int, shares: int) -> list[tuple[int, bytes]]
     if not secret:
         raise ValueError("secret must not be empty")
 
+    if rng is None:
+        def rng() -> int:
+            return secrets.randbelow(256)
+
     out = [bytearray() for _ in range(shares)]
 
     for byte in secret:
         # f(0) = byte, with random coefficients above it
-        coefficients = [byte] + [secrets.randbelow(256) for _ in range(threshold - 1)]
+        coefficients = [byte] + [rng() for _ in range(threshold - 1)]
         for i in range(shares):
             x = i + 1
             # Horner evaluation at x

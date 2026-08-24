@@ -25,10 +25,24 @@ If Sealstone disappears tomorrow, everything needed to recover a vault is in thi
 
 ```
 spec/         The format specification
-vectors/      Test vectors — every implementation must pass all of them
-decoder/      Reference decoder, Python, no dependencies beyond the standard
-              library and one vendored Argon2id
+vectors/      Test vector corpus, indexed by manifest.json
+decoder/      Reference decoder and the conformance suite
 ```
+
+## Verifying an implementation
+
+```
+cd decoder && python3 -m unittest discover -s tests -t .
+```
+
+58 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
+executable definition of what implementing this format means — any
+implementation, in any language, has to pass the same ten families.
+
+Set `SEALSTONE_SLOW_TESTS=1` to include the family at production parameters.
+
+Regenerate the corpus with `python3 vectors/generate.py --all`. Output is
+deterministic, so a diff in `git status` afterwards means the encoder changed.
 
 ## Language stack
 

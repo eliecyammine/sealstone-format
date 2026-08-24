@@ -1,8 +1,15 @@
 # Sealstone Format v1
 
-Status: **Draft specification.** Must be frozen before any storage or cryptographic code is written
-Depends on: `14-THREAT-MODEL.md`
-Intended to be **published publicly** at a stable URL. It is a trust asset, not a technical appendix (MPD 11.7)
+Status: **Specification, frozen.** Version 1.
+
+This document describes the file format Sealstone writes, completely enough to
+implement a reader without seeing Sealstone's source. That is its purpose: a
+backup you make today should be openable in ten years by software that does not
+exist yet, written by someone who has never met us.
+
+Alongside it in this repository are the test vectors any implementation must
+pass, and a reference decoder written in Python so it cannot share a bug with
+the Swift implementation it verifies.
 
 ---
 
@@ -407,7 +414,7 @@ Not a fallback. A designed artifact and a first-class export target.
 | Layout change | **Major** | **Refuses** |
 | Semantic change to an existing field | **Major** | **Refuses** |
 
-**Every version ever published must remain decodable by the current application, forever.** Migration tests run against a corpus containing at least one file from every released version — see doc 16.
+**Every version ever published must remain decodable by the current application, forever.** Migration tests run against a corpus containing at least one file from every released version, in `vectors/09-versions`.
 
 ---
 
@@ -444,7 +451,7 @@ All five open decisions are resolved. The format may be frozen.
 
 | # | Decision | Resolution |
 |---|---|---|
-| 1 | **Argon2id implementation** | **Vendored pure-Swift, in-repo.** Argon2id is in neither CryptoKit nor swift-crypto today, but a dependency-free pure-Swift implementation of RFC 9106 exists, and an Argon2id PR is open against `apple/swift-crypto`. We vendor a reviewed pure-Swift implementation into `VaultCrypto` as **Tier 1** under the dependency doctrine (doc 16 §1.1): our source, our tests, no package reference, no supply chain. Correctness is proven against RFC 9106's official test vectors. **Migration trigger:** if Argon2id ships in CryptoKit or swift-crypto, move to the platform implementation and delete ours — the `kdfId` field makes that a non-event |
+| 1 | **Argon2id implementation** | **Vendored pure-Swift, in-repo.** Argon2id is in neither CryptoKit nor swift-crypto today, but a dependency-free pure-Swift implementation of RFC 9106 exists, and an Argon2id PR is open against `apple/swift-crypto`. A reviewed pure-Swift implementation is vendored into the Swift package rather than taken as a dependency: our source, our tests, no package reference, no supply chain. Correctness is proven against RFC 9106's official test vectors. **Migration trigger:** if Argon2id ships in CryptoKit or swift-crypto, move to the platform implementation and delete ours — the `kdfId` field makes that a non-event |
 | 2 | **AEAD default** | **AES-256-GCM** (`aeadId = 0x01`). Hardware-accelerated on all supported Apple hardware. `aeadId` keeps the choice reversible; ChaCha20-Poly1305 stays specified at `0x02` and unused |
 | 3 | **Passphrase on the Paper Impression** | **Excluded by default.** Includable by explicit user choice, with the consequence stated in the same breath: including it makes the sheet self-sufficient *and* makes the sheet a single point of failure |
 | 4 | **Vault-at-rest store format** | **Reuse this envelope.** One format is one thing to get right, one thing to audit, one thing to document, and one thing to migrate. The at-rest key comes from the Keychain rather than a passphrase, so `kdfId = 0x00` (`none`) is reserved for that case and the KDF parameter fields are zero |
@@ -472,7 +479,7 @@ The at-rest store uses this same envelope with `kdfId = 0x00` — the key comes 
 | Vault file in iCloud Backup | **Excluded** (`isExcludedFromBackup`) | An undeclared encrypted copy of the vault in Apple's infrastructure contradicts *nothing leaves this device unless you send it*, even though it would be ciphertext |
 | Vault key accessibility | `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` | Not synchronised, not migrated to a restored device |
 | Restore path | **The sealed Impression, only** | One designed path, which the user has verified. This makes the backup habit load-bearing rather than optional, which is the intent of the whole product |
-| macOS | Data protection keychain, per doc 13 §6.3 | The legacy file-based keychain has different ACL behaviour |
+| macOS | Data protection keychain | The legacy file-based keychain has different access-control behaviour, so an implementation must opt in to get the same semantics as iOS |
 
 **The consequence, and it is deliberate:** restoring a phone from an iCloud backup restores the *app*, not the *vault*. The user is shown a clear explanation and asked for their Impression. A product that quietly restored the vault from iCloud would be a product whose vault was in iCloud.
 
@@ -480,7 +487,7 @@ The at-rest store uses this same envelope with `kdfId = 0x00` — the key comes 
 
 ## 10. Knowledge base delivery
 
-The Map needs to know how real services recover accounts. **The obvious implementation leaks the user's entire account list**, which doc 14 §3 identifies as the most sensitive asset in the product in aggregate.
+The Map needs to know how real services recover accounts. **The obvious implementation leaks the user's entire account list**, which is the most sensitive thing the product holds in aggregate, because it maps where someone's digital life is weakest.
 
 **Normative rules:**
 
@@ -525,6 +532,6 @@ Named so the scope is bounded. Each gets a dedicated adapter, a property-based t
 | Raivo | JSON and ZIP |
 | Generic JSON / CSV | Explicit column-mapping step, then the standard staging review |
 
-**Every adapter obeys doc 13 §3.4 without exception:** parse to staging, validate everything, show a review screen, resolve duplicates, commit atomically, never touch the source file.
+**Every adapter follows the same rule without exception:** parse to staging, validate everything, show a review screen, resolve duplicates, commit atomically, never touch the source file.
 
 Formats beyond this list are added on evidence — a real user with a real file — not on speculation.

@@ -2,8 +2,9 @@
 
 The file format behind [Sealstone](https://sealstone.app) — specification, test vectors, and an independent reference decoder.
 
-**Status: draft. The format is not yet frozen and is subject to change.**
-This repository becomes public when the format is frozen. Until then, treat nothing here as stable.
+**Status: frozen.** Version 1 is stable. Any change that would break an
+existing file requires a major version, and every version ever published stays
+readable by the current implementation.
 
 ---
 

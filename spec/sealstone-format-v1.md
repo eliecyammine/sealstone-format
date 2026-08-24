@@ -24,6 +24,22 @@ In priority order. Where they conflict, the higher one wins.
 
 The file a user gets when they seal a backup. Extension `.seal`, UTI `app.sealstone.impression`.
 
+### 2.0 On the `.seal` extension
+
+**File extensions are not owned, registered, or allocated by anyone.** There is no authority to apply to and nothing to reserve. The question is only whether a collision is likely and what happens if one occurs.
+
+**Checked, August 2026.** No significant modern claimant. Oracle IRM — the most commonly cited "sealed content" product — does **not** use `.seal`; it prefixes `s` to the original extension, producing `.sdoc`, `.sxls`, `.stxt`. The only historical user found was SEAL, a 32-bit DOS GUI, long dead. Directory sites listing `.seal` generically are indexing that.
+
+**How Apple resolves a collision if one ever arises.** UTIs declared in the system library take precedence over third-party ones. Between two third-party apps, macOS resolves arbitrarily, first-come, **without warning the user**. The user's only remedy is Open With. This is worth knowing but is not a reason to avoid the extension — it is true of every non-system extension.
+
+**Three mitigations, already in the design:**
+
+1. **The UTI is genuinely unique.** `app.sealstone.impression` is reverse-DNS under a domain we control. The *identifier* cannot collide even though the extension theoretically can.
+2. **The magic bytes are authoritative, not the extension.** A file beginning `SEALSTN` is a Sealstone Impression regardless of what it is named, and §2.4 step 1 verifies that before anything else. A user who renames a backup loses nothing.
+3. **Declare `UTTypeConformsTo: public.data`** so the system treats it sensibly even where no app claims it.
+
+**Decision: keep `.seal`.** Short, readable, on-brand, and — for a file someone may need to recognise in a folder a decade from now — meaningfully better than `.sealstone`. Recorded here as a decision made on evidence rather than an assumption never checked.
+
 ### 2.1 Layout
 
 All integers big-endian. The entire header is passed as **associated authenticated data** to the AEAD, so any modification to the version, the algorithm identifiers, or the KDF parameters is detected on open.

@@ -32,6 +32,8 @@ REAL_KDF = dict(memory_kib=65536, iterations=3, parallelism=4)
 PASSPHRASE = "correct horse battery staple"
 
 # The regions a tampered-file consumer must check, and the byte offset in each.
+# Every field of the file appears here, including the length prefixes and the
+# reserved bytes — the header is authenticated in full, so no region is exempt.
 TAMPER_REGIONS = {
     "magic": 0,
     "formatMajor": 7,
@@ -41,8 +43,11 @@ TAMPER_REGIONS = {
     "kdfMemory": 11,
     "kdfIterations": 15,
     "kdfParallelism": 19,
+    "saltLen": 20,
     "salt": 21,
+    "nonceLen": 37,
     "nonce": 38,
+    "reserved": 50,
     "ciphertext": -20,
     "tag": -1,
 }
@@ -376,18 +381,36 @@ def build_version_family() -> dict:
         "mustOpen": True,
     })
 
-    # A minor version bump must remain readable; a major bump must not.
-    forward_minor = bytearray(blob)
-    forward_minor[8] = 9
-    write(ROOT / family / "v1.9-unknown-minor.seal", bytes(forward_minor))
+    # A genuinely sealed forward-minor file must open. This is the positive
+    # half of the rule and cannot be produced by patching a byte, because the
+    # header is authenticated.
+    sealed_minor = envelope.seal(
+        plaintext, passphrase=PASSPHRASE, format_minor=9,
+        **FAST_KDF, **fixed_salt_and_nonce(f"{family}/minor9"))
+    write(ROOT / family / "v1.9-sealed.seal", sealed_minor)
     entries.append({
         "version": "1.9",
-        "file": f"{family}/v1.9-unknown-minor.seal",
+        "file": f"{family}/v1.9-sealed.seal",
+        "expectedPlaintext": f"{family}/v1.0-plaintext.json",
+        "mustOpen": True,
+        "note": ("Sealed with minor version 9. A reader must accept an unknown "
+                 "minor version rather than refusing it, so this must open."),
+    })
+
+    # Patching the minor byte of an existing file must still fail, but on the
+    # authentication tag rather than on version grounds.
+    forward_minor = bytearray(blob)
+    forward_minor[8] = 9
+    write(ROOT / family / "v1.9-patched-minor.seal", bytes(forward_minor))
+    entries.append({
+        "version": "1.9",
+        "file": f"{family}/v1.9-patched-minor.seal",
         "mustOpen": False,
-        "note": ("An unknown minor version must not be refused on version "
-                 "grounds. This file fails on the authentication tag instead, "
-                 "because the header is authenticated. Both facts matter: "
-                 "reject it, but not for the wrong reason."),
+        "failsOn": "authenticationTag",
+        "note": ("The minor byte was altered after sealing. It must be rejected "
+                 "because the header is authenticated, not because the version "
+                 "is unknown. Both facts matter: reject it, but for the right "
+                 "reason."),
     })
 
     forward_major = bytearray(blob)
@@ -478,8 +501,13 @@ def main() -> int:
                         help="include the slow real-parameters family")
     args = parser.parse_args()
 
+    # Without --all the slow family is not rebuilt, so its files must survive.
+    # Deleting them here would mean a casual regeneration destroys part of the
+    # corpus and breaks the determinism check in CI.
     for existing in sorted(ROOT.glob("[0-9][0-9]-*")):
         if existing.is_dir():
+            if not args.all and existing.name == "10-real-parameters":
+                continue
             shutil.rmtree(existing)
 
     families = [
@@ -507,8 +535,21 @@ def main() -> int:
               file=sys.stderr)
         families.append(build_real_parameters_family())
     else:
-        print("Skipping 10-real-parameters. Use --all to include it.",
-              file=sys.stderr)
+        # Carry the existing entry forward unchanged so the manifest keeps
+        # describing the files that are still on disk.
+        carried = None
+        manifest_path = ROOT / "manifest.json"
+        if manifest_path.exists():
+            for family in json.loads(manifest_path.read_text())["families"]:
+                if family["id"] == "10-real-parameters":
+                    carried = family
+        if carried is not None:
+            families.append(carried)
+            print("Kept 10-real-parameters as-is. Use --all to regenerate it.",
+                  file=sys.stderr)
+        else:
+            print("10-real-parameters is missing. Run with --all before "
+                  "committing.", file=sys.stderr)
 
     manifest = {
         "formatVersion": 1,

@@ -55,7 +55,7 @@ python3 -m sealstone_format combine sheet1.txt sheet2.txt sheet3.txt
 cd decoder && python3 -m unittest discover -s tests -t .
 ```
 
-81 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
+87 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
 executable definition of what implementing this format means — any
 implementation, in any language, has to pass the same ten families.
 

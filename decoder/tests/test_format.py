@@ -165,9 +165,10 @@ class TestEnvelope(unittest.TestCase):
     def test_every_modified_region_is_detected(self):
         # One byte flipped in each region of the file.
         regions = {
-            "magic": 0, "formatMajor": 7, "kdfId": 9, "aeadId": 10,
-            "kdfMemory": 11, "kdfIterations": 15, "kdfParallelism": 19,
-            "salt": 21, "nonce": 38, "ciphertext": -20, "tag": -1,
+            "magic": 0, "formatMajor": 7, "formatMinor": 8, "kdfId": 9,
+            "aeadId": 10, "kdfMemory": 11, "kdfIterations": 15,
+            "kdfParallelism": 19, "saltLen": 20, "salt": 21, "nonceLen": 37,
+            "nonce": 38, "reserved": 50, "ciphertext": -20, "tag": -1,
         }
         for name, position in regions.items():
             corrupted = bytearray(self.blob)
@@ -242,6 +243,22 @@ class TestVaultDocument(unittest.TestCase):
     def test_duplicate_ids_rejected(self):
         document = sample_document()
         document["items"][1]["id"] = document["items"][0]["id"]
+        with self.assertRaises(InvalidVaultError):
+            vault.validate(document)
+
+    def test_duplicate_link_ids_rejected(self):
+        document = sample_document()
+        document["links"].append(dict(document["links"][0]))
+        with self.assertRaises(InvalidVaultError):
+            vault.validate(document)
+
+    def test_duplicate_keeper_ids_rejected(self):
+        document = sample_document()
+        keeper = {"id": "kpr_1", "displayName": "Sara",
+                  "contact": "sara@example.com", "bundleId": "bnd_1",
+                  "fragmentIndex": 1, "issuedAt": "2026-08-24T10:00:00Z",
+                  "lastConfirmedAt": None, "status": "active"}
+        document["keepers"] = [keeper, dict(keeper)]
         with self.assertRaises(InvalidVaultError):
             vault.validate(document)
 

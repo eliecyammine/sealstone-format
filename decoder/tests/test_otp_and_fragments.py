@@ -213,6 +213,21 @@ class TestFragmentPaper(unittest.TestCase):
             recovered.append((decoded["index"], decoded["share"]))
         self.assertNotEqual(shamir.combine(recovered), self.secret)
 
+    def test_rewording_the_sheet_does_not_break_reading_it(self):
+        # Payload lines are recognised by shape, not by matching the prose
+        # around them, so the sheet's wording can change freely.
+        index, share = self.shares[2]
+        sheet = fragment.to_paper(self.SET_ID, index, 3, 5, share)
+        reworded = (sheet
+                    .replace("open it together", "unlock it as a group")
+                    .replace("To open what it protects", "Between you"))
+        self.assertEqual(fragment.from_paper(reworded)["share"], share)
+
+    def test_set_line_is_not_mistaken_for_payload(self):
+        index, share = self.shares[0]
+        sheet = fragment.to_paper(self.SET_ID, index, 3, 5, share, holder="Sara")
+        self.assertEqual(fragment.from_paper(sheet)["share"], share)
+
     def test_rejects_text_with_no_fragment(self):
         with self.assertRaises(fragment.FragmentError):
             fragment.from_paper("just some notes\nnothing here\n")

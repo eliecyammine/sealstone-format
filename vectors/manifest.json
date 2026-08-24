@@ -127,14 +127,29 @@
           "file": "05-tamper/tampered-kdfParallelism.seal"
         },
         {
+          "region": "saltLen",
+          "byteOffset": 20,
+          "file": "05-tamper/tampered-saltLen.seal"
+        },
+        {
           "region": "salt",
           "byteOffset": 21,
           "file": "05-tamper/tampered-salt.seal"
         },
         {
+          "region": "nonceLen",
+          "byteOffset": 37,
+          "file": "05-tamper/tampered-nonceLen.seal"
+        },
+        {
           "region": "nonce",
           "byteOffset": 38,
           "file": "05-tamper/tampered-nonce.seal"
+        },
+        {
+          "region": "reserved",
+          "byteOffset": 50,
+          "file": "05-tamper/tampered-reserved.seal"
         },
         {
           "region": "ciphertext",
@@ -358,9 +373,17 @@
         },
         {
           "version": "1.9",
-          "file": "09-versions/v1.9-unknown-minor.seal",
+          "file": "09-versions/v1.9-sealed.seal",
+          "expectedPlaintext": "09-versions/v1.0-plaintext.json",
+          "mustOpen": true,
+          "note": "Sealed with minor version 9. A reader must accept an unknown minor version rather than refusing it, so this must open."
+        },
+        {
+          "version": "1.9",
+          "file": "09-versions/v1.9-patched-minor.seal",
           "mustOpen": false,
-          "note": "An unknown minor version must not be refused on version grounds. This file fails on the authentication tag instead, because the header is authenticated. Both facts matter: reject it, but not for the wrong reason."
+          "failsOn": "authenticationTag",
+          "note": "The minor byte was altered after sealing. It must be rejected because the header is authenticated, not because the version is unknown. Both facts matter: reject it, but for the right reason."
         },
         {
           "version": "2.0",

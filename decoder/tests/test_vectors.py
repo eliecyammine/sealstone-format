@@ -147,7 +147,8 @@ class TestOpenFails(unittest.TestCase):
         regions = {c["region"] for c in family["cases"]}
         required = {"magic", "formatMajor", "formatMinor", "kdfId", "aeadId",
                     "kdfMemory", "kdfIterations", "kdfParallelism",
-                    "salt", "nonce", "ciphertext", "tag"}
+                    "saltLen", "salt", "nonceLen", "nonce", "reserved",
+                    "ciphertext", "tag"}
         self.assertEqual(required - regions, set(),
                          "tamper family does not cover every region of the file")
 
@@ -222,6 +223,39 @@ class TestVersionVectors(unittest.TestCase):
                     else:
                         with self.assertRaises(SealstoneFormatError):
                             envelope.open_impression(blob, passphrase=passphrase)
+
+    def test_forward_minor_version_is_accepted(self):
+        family = families_of_kind("versions")[0]
+        opening = [e for e in family["entries"]
+                   if e["version"] == "1.9" and e["mustOpen"]]
+        self.assertTrue(opening, "no positive forward-minor vector in the corpus")
+
+        for entry in opening:
+            blob = (VECTORS / entry["file"]).read_bytes()
+            plaintext, header = envelope.open_impression(
+                blob, passphrase=passphrase_of(family))
+            self.assertEqual(header.format_minor, 9)
+            expected = (VECTORS / entry["expectedPlaintext"]).read_bytes()
+            self.assertEqual(plaintext, expected)
+
+    def test_patched_minor_fails_on_the_tag_not_the_version(self):
+        from sealstone_format.errors import BrokenSealError, UnsupportedVersionError
+
+        family = families_of_kind("versions")[0]
+        entry = next(e for e in family["entries"]
+                     if e.get("failsOn") == "authenticationTag")
+        blob = (VECTORS / entry["file"]).read_bytes()
+
+        with self.assertRaises(BrokenSealError):
+            envelope.open_impression(blob, passphrase=passphrase_of(family))
+
+        # Specifically not a version refusal — the minor version is legal.
+        try:
+            envelope.open_impression(blob, passphrase=passphrase_of(family))
+        except UnsupportedVersionError:
+            self.fail("a legal minor version was refused on version grounds")
+        except BrokenSealError:
+            pass
 
     def test_unknown_major_is_refused_on_version_grounds(self):
         family = families_of_kind("versions")[0]

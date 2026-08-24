@@ -106,7 +106,7 @@ def to_paper(set_id: bytes, index: int, threshold: int, total: int,
 
     lines = [
         f"Sealstone fragment {index} of {total} "
-        f"— any {threshold} open the vault",
+        f"— any {threshold} open it together",
         f"Set {set_id[:2].hex().upper()}-{set_id[2:4].hex().upper()}",
     ]
     if holder:
@@ -119,8 +119,8 @@ def to_paper(set_id: bytes, index: int, threshold: int, total: int,
     lines += [
         "",
         "This is one piece of a key. On its own it opens nothing.",
-        f"To open the vault, {threshold} of the {total} people holding pieces",
-        "need to bring theirs together.",
+        f"To open what it protects, {threshold} of the {total} people holding",
+        "pieces need to bring theirs together.",
         "",
         "Letters are not case sensitive. I and L read as 1, O reads as 0.",
         "There is no expiry date on this sheet.",
@@ -128,24 +128,44 @@ def to_paper(set_id: bytes, index: int, threshold: int, total: int,
     return "\n".join(lines)
 
 
+def _is_payload_token(token: str) -> bool:
+    """Whether a whitespace-separated token could be a group of fragment data.
+
+    Groups are five characters of Crockford Base32. Prose fails on length,
+    punctuation, or both.
+    """
+    if not token or len(token) > 5:
+        return False
+    try:
+        crockford_decode(token)
+    except ValueError:
+        return False
+    return True
+
+
 def from_paper(text: str) -> dict:
     """Read a fragment back from a transcribed sheet.
 
-    Instruction lines are skipped, so a whole sheet can be pasted in without
-    being trimmed first.
+    A whole sheet can be pasted in without trimming the instructions off it.
+    Payload lines are recognised by their shape — groups of five Crockford
+    characters — rather than by matching the surrounding prose, so rewording
+    the sheet cannot break reading it back.
     """
-    payload = []
+    payload: list[str] = []
+    in_payload = False
+
     for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped:
+        tokens = line.split()
+        if not tokens:
             continue
-        lowered = stripped.lower()
-        if (lowered.startswith(("sealstone fragment", "set ", "held by",
-                                "this is one piece", "to open the vault",
-                                "need to bring", "letters are not",
-                                "there is no expiry"))):
-            continue
-        payload.append(stripped)
+
+        if all(_is_payload_token(token) for token in tokens) and (
+            any(len(token) == 5 for token in tokens) or in_payload
+        ):
+            payload.extend(tokens)
+            in_payload = True
+        else:
+            in_payload = False
 
     if not payload:
         raise FragmentError("no fragment data found in this text")

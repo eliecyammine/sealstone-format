@@ -139,9 +139,17 @@ def validate(document: dict[str, Any]) -> dict[str, Any]:
         if item_type == "authenticator":
             _validate_authenticator(item, where)
 
+    link_ids: set[str] = set()
     for index, link in enumerate(links):
         where = f"links[{index}]"
         _require(isinstance(link, dict), f"{where} must be an object")
+
+        identifier = link.get("id")
+        _require(isinstance(identifier, str) and identifier,
+                 f"{where}: id must be a non-empty string")
+        _require(identifier not in link_ids, f"{where}: duplicate id {identifier!r}")
+        link_ids.add(identifier)
+
         for end in ("sourceAccountId", "targetAccountId"):
             value = link.get(end)
             _require(value in account_ids,
@@ -149,6 +157,17 @@ def validate(document: dict[str, Any]) -> dict[str, Any]:
         method = link.get("method")
         _require(method in LINK_METHODS,
                  f"{where}: method must be one of {sorted(LINK_METHODS)}, got {method!r}")
+
+    keeper_ids: set[str] = set()
+    for index, keeper in enumerate(keepers):
+        where = f"keepers[{index}]"
+        _require(isinstance(keeper, dict), f"{where} must be an object")
+        identifier = keeper.get("id")
+        _require(isinstance(identifier, str) and identifier,
+                 f"{where}: id must be a non-empty string")
+        _require(identifier not in keeper_ids,
+                 f"{where}: duplicate id {identifier!r}")
+        keeper_ids.add(identifier)
 
     return document
 

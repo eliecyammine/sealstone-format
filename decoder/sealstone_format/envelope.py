@@ -193,19 +193,24 @@ def seal(plaintext: bytes, *, passphrase: str | None = None,
          iterations: int = DEFAULT_ITERATIONS,
          parallelism: int = DEFAULT_PARALLELISM,
          salt: bytes | None = None,
-         nonce: bytes | None = None) -> bytes:
+         nonce: bytes | None = None,
+         format_minor: int = FORMAT_MINOR) -> bytes:
     """Produce an Impression.
 
     `salt` and `nonce` exist so test vectors can be reproduced exactly. Leave
     them as None everywhere else; they must be fresh per file, which is what
     makes single-shot AES-GCM safe here.
+
+    `format_minor` exists to build forward-compatibility vectors. A reader must
+    accept an unknown minor version, and proving that needs a file genuinely
+    sealed with one rather than a tampered byte.
     """
     if (passphrase is None) == (key is None):
         raise ValueError("supply exactly one of passphrase or key")
 
     header = Header(
         format_major=FORMAT_MAJOR,
-        format_minor=FORMAT_MINOR,
+        format_minor=format_minor,
         kdf_id=KDF_ARGON2ID if passphrase is not None else KDF_NONE,
         aead_id=AEAD_AES_256_GCM,
         kdf_memory_kib=memory_kib if passphrase is not None else 0,

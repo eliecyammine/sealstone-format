@@ -136,6 +136,7 @@ def full_vault() -> dict:
         {"id": "itm_totp", "accountId": "acc_mail", "type": "authenticator",
          "favorite": True, "ordering": 0,
          "createdAt": "2026-08-24T00:00:00Z", "modifiedAt": "2026-08-24T00:00:00Z",
+         "lastUsedAt": "2026-08-24T09:30:00Z",
          "secret": "JBSWY3DPEHPK3PXP", "algorithm": "SHA256", "digits": 8,
          "period": 60, "counter": None, "otpType": "totp"},
         {"id": "itm_hotp", "accountId": "acc_bank", "type": "authenticator",

@@ -149,6 +149,35 @@ class TestOpenSucceeds(unittest.TestCase):
         self.assertEqual(keeper["relayFromTheFuture"],
                          {"endpoint": "https://example.invalid/r"})
 
+    def test_last_used_survives(self):
+        """Optional, and only present on an item that has been used."""
+        family = next(f for f in families_of_kind("open-succeeds")
+                      if f["id"] == "03-full-vault")
+        blob = (VECTORS / family["file"]).read_bytes()
+        plaintext, _ = envelope.open_impression(blob, passphrase=passphrase_of(family))
+        document = vault.parse(plaintext)
+
+        used = next(i for i in document["items"] if i["id"] == "itm_totp")
+        self.assertEqual(used["lastUsedAt"], "2026-08-24T09:30:00Z")
+
+        never = next(i for i in document["items"] if i["id"] == "itm_hotp")
+        self.assertNotIn("lastUsedAt", never)
+
+    def test_last_used_must_be_a_timestamp(self):
+        from sealstone_format.errors import InvalidVaultError
+        document = {
+            "formatVersion": 1, "vaultId": "v1",
+            "createdAt": "2026-08-24T00:00:00Z", "updatedAt": "2026-08-24T00:00:00Z",
+            "accounts": [{"id": "a1", "service": "S", "identifier": "i",
+                          "tags": [], "createdAt": "2026-08-24T00:00:00Z"}],
+            "items": [{"id": "i1", "accountId": "a1", "type": "note",
+                       "createdAt": "2026-08-24T00:00:00Z",
+                       "title": "t", "body": "b", "lastUsedAt": 12345}],
+            "links": [], "keepers": [],
+        }
+        with self.assertRaises(InvalidVaultError):
+            vault.validate(document)
+
     def test_re_serialising_keeps_every_unknown_key(self):
         """Reading and writing again must not be a way to lose data."""
         family = next(f for f in families_of_kind("open-succeeds")

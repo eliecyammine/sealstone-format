@@ -140,6 +140,41 @@ class TestArgon2(unittest.TestCase):
             argon2.hash_raw(type_=argon2.TYPE_ID, **self.COMMON).hex(),
             "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659")
 
+    # The RFC vectors all use m=32, which gives a segment length of 2. The
+    # first segment of the first pass then runs zero times, so an entire code
+    # path goes unexercised — and that is exactly where a defect lived: the
+    # first address block was never generated, and every derivation at a
+    # realistic size was wrong while these three vectors passed.
+    #
+    # Generated with the reference implementation:
+    #   printf 'password' | argon2 saltsaltsaltsalt -id -k M -t T -p P -l 32 -r
+    REFERENCE_VECTORS = [
+        (8, 1, 1, "94c3e0558c1de1901090e8a964635193"),
+        (64, 1, 1, "59bf4338b29483094be5f8da77db5f08"),
+        (256, 4, 2, "602cef299d3307ab20e7d8cf14531e02"),
+        (512, 1, 1, "c6c8932e8f7b0374cde76fcf68df034e"),
+        (1024, 1, 1, "4c9a847bca2cfc41d97cbdd56a9739f4"),
+        (4096, 3, 4, "7f77af0c247ce317b69574fc9ccf5008"),
+    ]
+
+    def test_matches_the_reference_implementation_at_realistic_sizes(self):
+        for memory, iterations, parallelism, expected in self.REFERENCE_VECTORS:
+            with self.subTest(m=memory, t=iterations, p=parallelism):
+                tag = argon2.hash_raw(
+                    b"password", b"saltsaltsaltsalt",
+                    time_cost=iterations, memory_cost=memory,
+                    parallelism=parallelism, tag_length=32,
+                    type_=argon2.TYPE_ID)
+                self.assertEqual(tag.hex()[:32], expected)
+
+    @unittest.skipUnless(os.environ.get("SEALSTONE_SLOW_TESTS") == "1",
+                         "set SEALSTONE_SLOW_TESTS=1 to run at shipping parameters")
+    def test_matches_the_reference_at_shipping_parameters(self):
+        tag = argon2.hash_raw(b"password", b"saltsaltsaltsalt",
+                              time_cost=3, memory_cost=65536, parallelism=4,
+                              tag_length=32, type_=argon2.TYPE_ID)
+        self.assertEqual(tag.hex()[:32], "ac15942c3e63386a50cb7dab2ef19c9a")
+
 
 class TestEnvelope(unittest.TestCase):
     def setUp(self):

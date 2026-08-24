@@ -194,6 +194,18 @@ def hash_raw(password: bytes, salt: bytes, *, time_cost: int, memory_cost: int,
 
                 start = 2 if (pass_n == 0 and slice_n == 0) else 0
 
+                # The first segment of the first pass starts at index 2,
+                # because blocks 0 and 1 are already seeded from H0. That skips
+                # the `index % 128 == 0` trigger below, so the first address
+                # block has to be generated here instead. Without this the
+                # segment reads an all-zero address block, which is invisible
+                # at the RFC's test parameters (segment length 2, so the loop
+                # body never runs) and wrong at every larger size.
+                if data_independent and start == 2:
+                    input_block[6] += 1
+                    _compress(zero_block, input_block, scratch)
+                    _compress(zero_block, list(scratch), address_block)
+
                 for index in range(start, segment_length):
                     col = slice_n * segment_length + index
                     prev = memory[lane * lane_length + (col - 1) % lane_length]

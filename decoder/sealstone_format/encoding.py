@@ -84,3 +84,51 @@ def crockford_encode(data: bytes, group: int = 5) -> str:
 def crockford_decode(text: str) -> bytes:
     """Crockford Base32, decoding leniently. See the module docstring."""
     return _b32_decode(text, _CROCKFORD_DECODE, _CROCKFORD_SKIP)
+
+
+# ------------------------------------------------------------- identifiers
+
+#: The kinds this format defines, and how each one is generated. Time-ordered
+#: identifiers sort by creation so a vault dump reads chronologically. The two
+#: random kinds appear in handover URLs, where a timestamp would tell whoever
+#: holds the link when the handover was configured.
+IDENTIFIER_KINDS = {
+    "vlt": "timeOrdered",
+    "acc": "timeOrdered",
+    "itm": "timeOrdered",
+    "lnk": "timeOrdered",
+    "kpr": "random",
+    "bnd": "random",
+}
+
+#: 128 bits in Crockford Base32.
+IDENTIFIER_BODY_LENGTH = 26
+
+
+def parse_identifier(text: str) -> tuple[str, bytes]:
+    """Split an identifier into its kind and its 128-bit body.
+
+    The two halves are treated differently on purpose. The kind is matched
+    exactly and is always lowercase, because accepting `ACC_` and `acc_` as one
+    thing gives two spellings for one identifier and a way for a lookup to miss.
+
+    The body is decoded leniently, the way Crockford intends: `O` is a zero,
+    `I` and `l` are ones, and case is ignored. The person retyping a body is a
+    keeper working from a printed sheet, and the difference between lenient and
+    strict there is the difference between getting in and not.
+
+    Raises ValueError, naming what is wrong with it.
+    """
+    kind, separator, body = text.partition("_")
+    if not separator:
+        raise ValueError("an identifier is a kind, an underscore, then a body")
+    if kind not in IDENTIFIER_KINDS:
+        raise ValueError(f"unknown identifier kind {kind!r}")
+    if len(body) != IDENTIFIER_BODY_LENGTH:
+        raise ValueError(
+            f"{kind} body is {len(body)} characters, expected "
+            f"{IDENTIFIER_BODY_LENGTH}")
+
+    decoded = crockford_decode(body)
+    # 26 Crockford characters carry 130 bits, of which the top two are padding.
+    return kind, decoded[-16:]

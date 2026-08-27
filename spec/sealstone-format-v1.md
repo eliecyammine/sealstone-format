@@ -156,7 +156,84 @@ The plaintext inside the envelope: **UTF-8 JSON**. Chosen deliberately over a bi
 }
 ```
 
-### 3.2 The account / item / link model
+### 3.2 Requiredness, types and limits
+
+The examples above show every field populated, which is a good way to see the
+shape and a bad way to learn what is mandatory. This section is the normative
+one; where an example and this table disagree, this table wins.
+
+**Present or absent.** A field marked required MUST be present and MUST NOT be
+`null`. A field marked optional may be absent or `null`, and the two spellings
+mean the same thing: nothing was recorded. A decoder MUST treat them
+identically and MUST NOT preserve the difference, because writers disagree
+about which to emit and round-tripping the distinction turns a cosmetic
+difference into a diff.
+
+| Object | Required | Optional |
+|---|---|---|
+| Document | `formatVersion`, `vaultId`, `createdAt`, `updatedAt`, `accounts`, `items`, `links` | `keepers`, `handover` |
+| Account | `id`, `service`, `createdAt` | `identifier`, `domain`, `tags`, `notes` |
+| Item | `id`, `accountId`, `type`, `createdAt` | `favorite`, `ordering`, `modifiedAt`, `lastUsedAt` |
+| Link | `id`, `sourceAccountId`, `targetAccountId`, `method` | `verifiedAt`, `note` |
+
+An absent array and an empty array mean the same thing. A decoder MUST accept
+either and SHOULD write the empty array.
+
+`identifier` is optional because not every account has one. A service with a
+single login per person has nothing to put there, and forcing a placeholder is
+how vaults fill with accounts called "default".
+
+**Timestamps.** Every field ending in `At` is an RFC 3339 timestamp in UTC with
+a `Z` suffix and second precision: `2026-08-24T10:00:00Z`. Fractional seconds
+MAY be written and MUST be accepted. Offsets other than `Z` MUST be accepted on
+read and MUST NOT be written. A decoder MUST NOT reject a timestamp for being
+in the future: clocks are wrong, and a file that will not open because a phone
+was set forward is a file that lost data for a reason unrelated to data.
+
+**Numbers.** Every numeric field in this format is an integer. A decoder MUST
+reject a non-integral value rather than rounding it, and MUST reject a value
+outside the range of a signed 64-bit integer rather than saturating. JSON has
+one number type and it is a double, so `1e300` parses happily as a whole number
+and then overflows whatever it is converted into. `ordering`, `digits`,
+`period`, `counter`, `threshold` and `total` are all subject to this.
+
+**Strings.** UTF-8, and a decoder MUST reject a document that is not
+well-formed UTF-8. Strings MAY contain any scalar value including newlines; no
+field is trimmed, case-folded or normalised on read. A `password` in particular
+is preserved byte for byte, spaces included, because a password with a trailing
+space is a password whose trailing space is load-bearing.
+
+**Limits.** A decoder MUST enforce ceilings before allocating, and MUST fail
+with an error that names the limit rather than exhausting memory. These are
+minimums an implementation must support, not maximums it must impose: a
+conforming decoder MUST accept a document within every limit below, and MAY
+accept more.
+
+| Limit | Value |
+|---|---|
+| Plaintext document | 64 MiB |
+| Accounts | 100,000 |
+| Items | 100,000 |
+| Links | 100,000 |
+| Keepers | 255 |
+| Any single string | 1 MiB |
+| `codes`, `questions`, `words` in one item | 10,000 |
+| Nesting depth of unknown preserved values | 64 |
+
+The nesting limit is what stops a preserved unknown value being a recursion
+bomb. Preservation means a decoder copies structures it does not understand,
+and a structure it does not understand is a structure an attacker chose.
+
+**Version numbers.** `formatVersion` is the version of the document in §3.
+`version` in the envelope header (§2.1) is the version of the envelope in §2.
+They are independent and MUST NOT be assumed equal. The envelope carries bytes
+without knowing what they are, so an envelope of version 1 can carry a document
+of version 2, and a change to the encryption does not oblige a change to the
+document schema. A decoder MUST check each against what it supports and MUST
+report which one it could not read; "unsupported version" without saying which
+sends the reader to the wrong half of the problem.
+
+### 3.3 The account / item / link model
 
 The founding document modelled items directly. That cannot express the recovery graph, so v1 separates three concepts:
 
@@ -254,11 +331,11 @@ type. Only `password` is required.
 
 Read as: *the Google account can be used to recover the bank account.* `method` is one of `email`, `sms`, `voice`, `backupCodes`, `securityQuestions`, `trustedContact`, `hardwareKey`, `other`.
 
-### 3.3 Validation rules a decoder must enforce
+### 3.4 Validation rules a decoder must enforce
 
 - Every `item.accountId` and every `link` endpoint resolves to an existing account.
 - Identifiers are unique within their collection.
-- `digits` within the range for that `otpType` (see §3.2); `period` between 1 and 300.
+- `digits` within the range for that `otpType` (see §3.3); `period` between 1 and 300.
 - `counter` MUST be an integer when `otpType` is `hotp`. For any other kind it MUST be
   absent **or** `null`. Both spellings appear in the wild and in the vectors here, and a
   reader that requires absence rejects files this specification calls valid, including
@@ -266,11 +343,11 @@ Read as: *the Google account can be used to recover the bank account.* `method` 
 - `secret` is valid Base32.
 - Unknown `type` values: **preserve the object verbatim and skip it.** Never silently discard — a decoder from an older version must not destroy data written by a newer one on round-trip.
 - **Unknown keys: preserve, wherever they appear.** At the document root, and inside every account, item, link and keeper. §6 promises that a new optional field is a minor change which an older decoder "ignores and preserves", and a new optional field lands on an account or a keeper far more often than at the root. Preserving only the root would keep that promise in the one place it matters least.
-- Reject documents exceeding configured size and count ceilings, before allocation.
+- Reject documents exceeding the ceilings in §3.2, before allocation.
 
 That preservation rule is what makes forward compatibility real rather than aspirational. It is also easy to leave half-implemented, because preserving unknown item types looks like the hard part and is not the whole of it. A language whose object mapping reads named fields will drop everything else by default and give no sign that it did. Family 03 of the corpus therefore carries an unknown key at the root *and* inside an account, a link and a keeper, so a decoder that implements only some of this fails a vector rather than shipping.
 
-### 3.4 Keepers
+### 3.5 Keepers
 
 ```json
 {
@@ -303,10 +380,10 @@ That preservation rule is what makes forward compatibility real rather than aspi
 }
 ```
 
-`rehearsedAt` is null until a real reconstruction has succeeded. Doc 13 §5.3 forbids the `armed` state until it is set.
+`rehearsedAt` is null until a real reconstruction has succeeded. A keeper set MUST NOT be presented as armed while it is null: an arrangement that has never been reconstructed is an arrangement nobody has evidence works, and the moment it is needed is the wrong moment to find out.
 
 
-### 3.5 Identifiers
+### 3.6 Identifiers
 
 Identifiers are strings of the form `<kind>_<body>`, where `kind` is one of
 `vlt`, `acc`, `itm`, `lnk`, `kpr`, `bnd` and `body` is 128 bits rendered in
@@ -332,9 +409,9 @@ implementation writes and what a reader should expect in practice.
 
 ## 4. Handover bundles and fragments
 
-### 4.0 The vault key is never split
+### 4.1 The vault key is never split
 
-Doc 13 §5.1 lets the user hand over *a subset* — the bank and the email, not everything. Splitting the vault key cannot express that: the vault key opens the whole vault, so keepers would receive far more than the interface promised, silently and undetectably.
+A handover is a subset: the bank and the email, not everything. Splitting the vault key cannot express that, because the vault key opens the whole vault. Keepers would receive far more than they were told they held, silently and undetectably.
 
 **Therefore:**
 
@@ -346,11 +423,61 @@ Doc 13 §5.1 lets the user hand over *a subset* — the bank and the email, not 
 
 The bundle is reviewable by the user before distribution, and it bounds the consequence of keeper collusion (threat C1) to exactly what was chosen. A user with three handover bundles has three independent fragment sets, each opening only its own bundle.
 
-### 4.1 Fragments
+### 4.2 What is inside a handover bundle
+
+The envelope is ordinary. The plaintext inside it is a vault document per §3,
+carrying only the accounts and items being handed over, plus one object saying
+what this is and where it came from:
+
+```json
+{
+  "formatVersion": 1,
+  "vaultId": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+  "createdAt": "2026-08-24T10:00:00Z",
+  "updatedAt": "2026-08-24T10:00:00Z",
+  "accounts": [],
+  "items": [],
+  "links": [],
+  "keepers": [],
+  "handover": {
+    "bundleId": "bnd_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+    "setId": "4F3A9C21000000000000000000000000",
+    "threshold": 3,
+    "total": 5,
+    "sealedAt": "2026-08-24T10:00:00Z",
+    "note": "For the family. The bank and the email."
+  }
+}
+```
+
+A bundle is a vault document so that anything able to read a vault can read a
+bundle. A keeper reconstructing one in ten years is the least supported user
+this format has, and giving them a second document type to find a reader for is
+a way of making a bad day worse.
+
+**Rules a decoder MUST enforce:**
+
+| Rule | Why |
+|---|---|
+| `handover` present means this is a bundle, absent means it is a vault | One bit, checkable before anything else is trusted |
+| `vaultId` is the vault it was cut from, not a new one | A keeper handing it back must be matchable to the original |
+| `bundleId` is unique per bundle, and stable across reissues of the same set | Rotation replaces the fragments, not the identity of what they open |
+| `setId` matches the `setId` in every fragment of the set | Catches a fragment from another set before the reconstruction fails obscurely |
+| `threshold` and `total` match the fragments | A bundle that disagrees with its fragments about *k* cannot be opened by following its own instructions |
+| `keepers` MUST be empty | A keeper arrangement is a fact about the vault, and copying it into what the keepers hold tells each of them who the others are |
+| `links` MUST reference only accounts present in the bundle | A dangling link names an account the keeper was not given, which leaks that it exists |
+
+`note` is what the user wrote for the keepers and is shown to them verbatim. It
+is the only free text here, and a decoder MUST NOT interpret it.
+
+A bundle is a valid vault document, so `formatVersion` and §3.4 apply to it
+unchanged.
+
+### 4.3 Fragments
 
 The Shamir shares distributed to keepers. **Shamir's Secret Sharing over GF(2⁸)**, applied byte-wise to the 32-byte **bundle** key, with the standard AES field polynomial `0x11B`.
 
-### 4.2 Fragment binary form
+### 4.4 Fragment binary form
 
 ```
 Offset  Size  Field       Notes
@@ -370,7 +497,7 @@ Offset  Size  Field       Notes
 
 The checksum is the CRC-32 of IEEE 802.3 — polynomial `0x04C11DB7`, reflected, initial value and final XOR `0xFFFFFFFF`; the same function zlib, gzip and PNG use — stored big-endian. It detects transcription error, not tampering. It is not a security control and the specification says so, because a checksum in a security format that is not labelled invites the wrong assumption.
 
-### 4.3 Fragment paper form
+### 4.5 Fragment paper form
 
 For hand transcription, a fragment is encoded in **Crockford Base32** — case-insensitive, and excludes `I`, `L`, `O` and `U` precisely because those are the characters people mistranscribe. Grouped in fives, with the set identifier and the `k`-of-`n` printed in plain language alongside:
 
@@ -385,7 +512,7 @@ Set 4F3A-9C21
 
 **Crockford decoding is lenient by design:** `I` and `l` map to `1`, `O` maps to `0`, and case is ignored. This is the difference between a keeper who succeeds and a keeper who gives up.
 
-### 4.35 What a keeper must hold
+### 4.6 What a keeper must hold
 
 A fragment set reconstructs the **bundle key**. It does not carry the bundle.
 
@@ -402,7 +529,7 @@ Distributing fragments without the bundle produces a handover that fails at the
 only moment it is used. An implementation MUST track both and MUST NOT report a
 handover as armed until every keeper holds both.
 
-### 4.4 Rotation, and what it cannot do
+### 4.7 Rotation, and what it cannot do
 
 Removing or replacing a keeper means **reissuing the whole set**:
 
@@ -476,10 +603,13 @@ Ship with the specification, and version them alongside it. **Built and passing*
 | 09 | One file per released version, plus a genuinely sealed forward-minor file, a patched-minor file, and an unknown-major file | mixed | 4 |
 | 10 | Production parameters — 64 MiB, t=3, p=4 | opens | marked slow |
 | 11 | The same file cut short at each structurally interesting offset | **rejected with a clear error** | 12 |
+| 12 | Identifiers: every kind, the malformed forms a reader must reject, and the transcription substitutions it must accept | mixed | 6 + 8 + 4 |
 
 **Both directions of the minor-version rule are covered.** A file *sealed* with an unknown minor version must open; a file whose minor byte was *patched* after sealing must fail — and must fail on the authentication tag rather than on version grounds, since the version itself is legal. Only the first can be produced by sealing, and only the second by tampering, so both vectors are needed.
 
-**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; and the limits declared in the manifest must match the implementation's constants.
+**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; the limits declared in the manifest must match the implementation's constants; and the identifier kinds the manifest declares must be exactly the kinds the decoder implements, so a manifest cannot drift into describing a format nobody has.
+
+**The KDF parameters in the corpus are deliberately far too weak, except in family 10.** Every other family is sealed with 64 KiB of memory and a single iteration, so the whole corpus can be verified in a scripting language in seconds. Those numbers protect nothing and MUST NOT be copied into an implementation; §2.2 has the ones that ship, and family 10 seals a file with them so the parameters that go out are not the least tested thing here. A reader that infers its defaults from a vector header will ship a file anybody can open.
 
 Passphrases and secrets are stored as **hex-encoded UTF-8** so no implementer has to infer an encoding — which matters most for family 04, where the whole point is that two byte sequences must derive the same key.
 

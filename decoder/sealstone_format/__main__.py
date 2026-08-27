@@ -57,16 +57,33 @@ def _cmd_inspect(args) -> int:
 def _cmd_open(args) -> int:
     data = _read(args.file)
 
-    passphrase = args.passphrase
-    if passphrase is None:
-        passphrase = getpass.getpass("Passphrase: ")
+    if args.key is not None:
+        # The keeper path. `combine` reconstructs a key from fragments, and a
+        # handover bundle is sealed under that key rather than a passphrase,
+        # so without this the procedure ends holding a key with nothing to
+        # use it on.
+        try:
+            key = bytes.fromhex(args.key.strip().replace(" ", ""))
+        except ValueError:
+            print("The key must be hex, as combine prints it.", file=sys.stderr)
+            return 1
+        if len(key) != 32:
+            print(f"A key is 32 bytes. That one is {len(key)}.", file=sys.stderr)
+            return 1
 
-    print("Deriving the key. This is deliberately slow — it is what makes the",
-          file=sys.stderr)
-    print("file expensive to attack. Pure Python makes it slower still.",
-          file=sys.stderr)
+        plaintext, header = envelope.open_impression(data, key=key)
+    else:
+        passphrase = args.passphrase
+        if passphrase is None:
+            passphrase = getpass.getpass("Passphrase: ")
 
-    plaintext, header = envelope.open_impression(data, passphrase=passphrase)
+        print("Deriving the key. This is deliberately slow — it is what makes the",
+              file=sys.stderr)
+        print("file expensive to attack. Pure Python makes it slower still.",
+              file=sys.stderr)
+
+        plaintext, header = envelope.open_impression(data, passphrase=passphrase)
+
     document = vault.parse(plaintext)
 
     if args.json:
@@ -169,6 +186,9 @@ def main(argv: list[str] | None = None) -> int:
     p_open = sub.add_parser("open", help="open an Impression")
     p_open.add_argument("file")
     p_open.add_argument("--passphrase", help="prompted for if omitted")
+    p_open.add_argument("--key",
+                        help="open with a raw 32-byte key in hex, as combine "
+                             "prints it, instead of a passphrase")
     p_open.add_argument("--codes", action="store_true",
                         help="print the current one-time code for each item")
     p_open.add_argument("--json", action="store_true",

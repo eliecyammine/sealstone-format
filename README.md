@@ -44,11 +44,22 @@ python3 -m sealstone_format open     ../backup.seal --codes
 actually logs you in. `--json` writes everything to stdout.
 
 If the vault was split among keepers, any threshold-many of them combine their
-sheets:
+sheets, and the key that comes out opens the handover bundle they were each
+given alongside their fragment:
 
 ```
 python3 -m sealstone_format combine sheet1.txt sheet2.txt sheet3.txt
+python3 -m sealstone_format open ../bundle.seal --key <the key it printed>
 ```
+
+Fragments are accepted as saved binary files or as the text of a printed sheet.
+Transcription is forgiving on purpose: the letter O counts as a zero, I and l
+count as ones, case does not matter, and spaces and dashes are ignored. Whoever
+is doing this is working from paper, possibly years from now, and possibly
+without the person who set it up.
+
+No network, no account, and no part of this needs sealstone.app to still
+exist.
 
 ## Verifying an implementation
 

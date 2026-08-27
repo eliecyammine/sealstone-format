@@ -480,6 +480,113 @@
           "file": "11-truncation/truncated-missing-one-tag-byte.seal"
         }
       ]
+    },
+    {
+      "id": "12-identifiers",
+      "description": "Identifiers of every kind, the malformed ones a reader must reject, and the transcription substitutions Crockford Base32 requires it to accept. The kind prefix is matched exactly and is always lowercase; the body is decoded leniently, because the person retyping one is a keeper working from paper.",
+      "kind": "identifiers",
+      "bodyBits": 128,
+      "bodyLength": 26,
+      "kinds": {
+        "timeOrdered": [
+          "vlt",
+          "acc",
+          "itm",
+          "lnk"
+        ],
+        "random": [
+          "kpr",
+          "bnd"
+        ]
+      },
+      "valid": [
+        {
+          "id": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "kind": "vlt",
+          "scheme": "timeOrdered"
+        },
+        {
+          "id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "kind": "acc",
+          "scheme": "timeOrdered"
+        },
+        {
+          "id": "itm_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "kind": "itm",
+          "scheme": "timeOrdered"
+        },
+        {
+          "id": "lnk_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "kind": "lnk",
+          "scheme": "timeOrdered"
+        },
+        {
+          "id": "kpr_ZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+          "kind": "kpr",
+          "scheme": "random"
+        },
+        {
+          "id": "bnd_00000000000000000000000000",
+          "kind": "bnd",
+          "scheme": "random"
+        }
+      ],
+      "mustReject": [
+        {
+          "id": "01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "no kind prefix, so a reader cannot tell what it names"
+        },
+        {
+          "id": "usr_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "a kind this format does not define"
+        },
+        {
+          "id": "acc01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "no separator between the kind and the body"
+        },
+        {
+          "id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RW",
+          "reason": "body one character short of 128 bits"
+        },
+        {
+          "id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWYY",
+          "reason": "body one character longer than 128 bits"
+        },
+        {
+          "id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWU",
+          "reason": "U is the one character Crockford excludes outright rather than mapping, so it cannot appear in a body"
+        },
+        {
+          "id": "acc_",
+          "reason": "prefix with no body"
+        },
+        {
+          "id": "ACC_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "the kind prefix is lowercase, and matching it loosely would let two spellings name one thing"
+        }
+      ],
+      "mustMatch": [
+        {
+          "written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "typed": "acc_o1J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "a typed letter O is a zero"
+        },
+        {
+          "written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "typed": "acc_0lJ8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "a typed lowercase L is a one"
+        },
+        {
+          "written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "typed": "acc_0IJ8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "reason": "a typed capital I is a one"
+        },
+        {
+          "written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+          "typed": "acc_01j8zkq4t7nbvx2m9dcfgh3rwy",
+          "reason": "the body is case-insensitive"
+        }
+      ]
     }
   ]
 }

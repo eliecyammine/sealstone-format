@@ -26,6 +26,11 @@ sys.path.insert(0, str(ROOT.parent / "decoder"))
 
 from sealstone_format import envelope, shamir  # noqa: E402
 
+# Deliberately far too weak to protect anything, so the corpus can be verified
+# in a scripting language in seconds. Every family except 10 uses these, and no
+# implementation may copy them: a file sealed with 64 KiB and one iteration is
+# a file anyone can open. Family 10 carries the real parameters so the ones
+# that ship are not the least tested thing here.
 FAST_KDF = dict(memory_kib=64, iterations=1, parallelism=1)
 REAL_KDF = dict(memory_kib=65536, iterations=3, parallelism=4)
 
@@ -159,6 +164,10 @@ def full_vault() -> dict:
          "createdAt": "2026-08-24T00:00:00Z",
          "words": ["abandon"] * 11 + ["about"],
          "wordlist": "BIP39-english", "passphrase": None},
+        {"id": "itm_password", "accountId": "acc_mail", "type": "password",
+         "createdAt": "2026-08-24T00:00:00Z",
+         "password": "correct horse battery staple", "username": "user",
+         "site": "mail.example", "note": None},
         {"id": "itm_key", "accountId": "acc_bank", "type": "hardwareKey",
          "createdAt": "2026-08-24T00:00:00Z",
          "label": "Blue key", "serial": "0000001", "keyType": "fido2"},
@@ -429,6 +438,86 @@ def build_shamir_family() -> dict:
     }
 
 
+def build_identifier_family() -> dict:
+    """Identifiers, which every reader parses and nothing had checked.
+
+    The scheme is load-bearing in two directions and neither had a vector. The
+    prefix is what makes an identifier pasted into the wrong field obvious, and
+    the choice of scheme per kind is what keeps a handover URL from carrying
+    the time the handover was made.
+    """
+    family = "12-identifiers"
+
+    valid = [
+        {"id": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY", "kind": "vlt", "scheme": "timeOrdered"},
+        {"id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY", "kind": "acc", "scheme": "timeOrdered"},
+        {"id": "itm_01J8ZKQ4T7NBVX2M9DCFGH3RWY", "kind": "itm", "scheme": "timeOrdered"},
+        {"id": "lnk_01J8ZKQ4T7NBVX2M9DCFGH3RWY", "kind": "lnk", "scheme": "timeOrdered"},
+        {"id": "kpr_ZZZZZZZZZZZZZZZZZZZZZZZZZZ", "kind": "kpr", "scheme": "random"},
+        {"id": "bnd_00000000000000000000000000", "kind": "bnd", "scheme": "random"},
+    ]
+
+    rejected = [
+        {"id": "01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "no kind prefix, so a reader cannot tell what it names"},
+        {"id": "usr_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "a kind this format does not define"},
+        {"id": "acc01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "no separator between the kind and the body"},
+        {"id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RW",
+         "reason": "body one character short of 128 bits"},
+        {"id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWYY",
+         "reason": "body one character longer than 128 bits"},
+        {"id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWU",
+         "reason": "U is the one character Crockford excludes outright rather "
+                   "than mapping, so it cannot appear in a body"},
+        {"id": "acc_",
+         "reason": "prefix with no body"},
+        {"id": "ACC_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "the kind prefix is lowercase, and matching it loosely "
+                   "would let two spellings name one thing"},
+    ]
+
+    # Crockford decoding is lenient on the body precisely so a keeper
+    # transcribing by hand succeeds. The same file must therefore be found by
+    # the same identifier typed with the substitutions people actually make.
+    equivalent = [
+        {"written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "typed": "acc_o1J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "a typed letter O is a zero"},
+        {"written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "typed": "acc_0lJ8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "a typed lowercase L is a one"},
+        {"written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "typed": "acc_0IJ8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "reason": "a typed capital I is a one"},
+        {"written": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+         "typed": "acc_01j8zkq4t7nbvx2m9dcfgh3rwy",
+         "reason": "the body is case-insensitive"},
+    ]
+
+    return {
+        "id": family,
+        "description": (
+            "Identifiers of every kind, the malformed ones a reader must "
+            "reject, and the transcription substitutions Crockford Base32 "
+            "requires it to accept. The kind prefix is matched exactly and is "
+            "always lowercase; the body is decoded leniently, because the "
+            "person retyping one is a keeper working from paper."
+        ),
+        "kind": "identifiers",
+        "bodyBits": 128,
+        "bodyLength": 26,
+        "kinds": {
+            "timeOrdered": ["vlt", "acc", "itm", "lnk"],
+            "random": ["kpr", "bnd"],
+        },
+        "valid": valid,
+        "mustReject": rejected,
+        "mustMatch": equivalent,
+    }
+
+
 def build_version_family() -> dict:
     family = "09-versions"
     entries = []
@@ -591,6 +680,7 @@ def main() -> int:
         build_wrong_passphrase_family(),
         build_hostile_family(),
         build_shamir_family(),
+        build_identifier_family(),
         build_version_family(),
         build_truncation_family(),
     ]

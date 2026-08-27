@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sealstone_format import envelope, shamir, vault  # noqa: E402
+from sealstone_format import encoding, envelope, shamir, vault  # noqa: E402
 from sealstone_format.errors import (  # noqa: E402
     HostileParametersError,
     SealstoneFormatError,
@@ -178,6 +178,23 @@ class TestOpenSucceeds(unittest.TestCase):
         with self.assertRaises(InvalidVaultError):
             vault.validate(document)
 
+    def test_password_items_round_trip(self):
+        """Only the password is required; the rest are optional."""
+        family = next(f for f in families_of_kind("open-succeeds")
+                      if f["id"] == "03-full-vault")
+        blob = (VECTORS / family["file"]).read_bytes()
+        plaintext, _ = envelope.open_impression(blob, passphrase=passphrase_of(family))
+        document = vault.parse(plaintext)
+
+        entry = next(i for i in document["items"] if i["type"] == "password")
+        self.assertEqual(entry["password"], "correct horse battery staple")
+        self.assertEqual(entry["username"], "user")
+
+        again = vault.parse(json.dumps(document).encode("utf-8"))
+        self.assertEqual(
+            next(i for i in again["items"] if i["type"] == "password")["password"],
+            "correct horse battery staple")
+
     def test_re_serialising_keeps_every_unknown_key(self):
         """Reading and writing again must not be a way to lose data."""
         family = next(f for f in families_of_kind("open-succeeds")
@@ -247,6 +264,64 @@ class TestOpenFails(unittest.TestCase):
                 with self.assertRaises(SealstoneFormatError):
                     envelope.open_impression(
                         blob, passphrase=passphrase_of(case))
+
+
+class TestIdentifiers(unittest.TestCase):
+    """The identifier scheme, which every reader parses.
+
+    It is load-bearing in two directions. The kind prefix is what makes an
+    identifier pasted into the wrong field obvious, and the scheme per kind is
+    what keeps a handover URL from carrying the time the handover was made.
+    """
+
+    def family(self) -> dict:
+        families = families_of_kind("identifiers")
+        self.assertEqual(len(families), 1)
+        return families[0]
+
+    def test_every_kind_parses_to_its_own_prefix(self):
+        for case in self.family()["valid"]:
+            with self.subTest(identifier=case["id"]):
+                kind, body = encoding.parse_identifier(case["id"])
+                self.assertEqual(kind, case["kind"])
+                self.assertEqual(len(body), 16, "a body is 128 bits")
+
+    def test_malformed_identifiers_are_rejected_with_a_reason(self):
+        for case in self.family()["mustReject"]:
+            with self.subTest(identifier=case["id"], reason=case["reason"]):
+                with self.assertRaises(ValueError):
+                    encoding.parse_identifier(case["id"])
+
+    def test_transcription_substitutions_reach_the_same_identifier(self):
+        """A keeper retyping from paper must land on the thing they meant.
+
+        Crockford decodes leniently for exactly this reason, and an identifier
+        that only matches when typed perfectly is one a person cannot use.
+        """
+        for case in self.family()["mustMatch"]:
+            with self.subTest(typed=case["typed"], reason=case["reason"]):
+                self.assertEqual(encoding.parse_identifier(case["written"]),
+                                 encoding.parse_identifier(case["typed"]))
+
+    def test_the_declared_kinds_match_the_implementation(self):
+        """A manifest that drifts from the code documents a format nobody has."""
+        declared = self.family()["kinds"]
+        for scheme, kinds in declared.items():
+            for kind in kinds:
+                self.assertEqual(encoding.IDENTIFIER_KINDS.get(kind), scheme)
+
+        self.assertEqual(
+            sorted(k for kinds in declared.values() for k in kinds),
+            sorted(encoding.IDENTIFIER_KINDS),
+            "the manifest and the decoder disagree about which kinds exist")
+
+    def test_the_kind_prefix_is_matched_exactly(self):
+        """Two spellings of one identifier is a way for a lookup to miss."""
+        for kind in encoding.IDENTIFIER_KINDS:
+            with self.subTest(kind=kind):
+                with self.assertRaises(ValueError):
+                    encoding.parse_identifier(
+                        f"{kind.upper()}_01J8ZKQ4T7NBVX2M9DCFGH3RWY")
 
 
 class TestRejectBeforeAllocation(unittest.TestCase):

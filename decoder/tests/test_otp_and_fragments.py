@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sealstone_format import fragment, otp, shamir  # noqa: E402
+from sealstone_format import envelope, fragment, otp, shamir  # noqa: E402
 from sealstone_format.encoding import b32_decode  # noqa: E402
+from sealstone_format.errors import SealstoneFormatError  # noqa: E402
 
 
 class TestHOTP(unittest.TestCase):
@@ -235,3 +237,68 @@ class TestFragmentPaper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestKeeperPathEndToEnd(unittest.TestCase):
+    """Fragments to key to open bundle, the whole way through.
+
+    This is the path a keeper walks, and until the CLI could take a raw key it
+    stopped one step short: `combine` printed a key and `open` had no way to
+    accept one. Each half was tested and the join was not, which is how a
+    procedure passes its tests and fails the only time anybody runs it.
+    """
+
+    def bundle(self, key: bytes) -> bytes:
+        document = {
+            "formatVersion": 1,
+            "vaultId": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+            "createdAt": "2026-08-24T10:00:00Z",
+            "updatedAt": "2026-08-24T10:00:00Z",
+            "accounts": [{"id": "acc_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+                          "service": "Bank", "identifier": "elie",
+                          "createdAt": "2026-08-24T10:00:00Z"}],
+            "items": [], "links": [], "keepers": [],
+            "handover": {"bundleId": "bnd_00000000000000000000000000",
+                         "setId": "4F3A9C21" + "00" * 12,
+                         "threshold": 3, "total": 5,
+                         "sealedAt": "2026-08-24T10:00:00Z",
+                         "note": "For the family."},
+        }
+        return envelope.seal(json.dumps(document).encode(), key=key)
+
+    def test_three_fragments_reopen_the_bundle(self):
+        key = bytes(range(32))
+        sealed = self.bundle(key)
+
+        stream = iter(bytes(range(256)) * 32)
+        shares = shamir.split(key, 3, 5, rng=lambda: next(stream))
+
+        recovered = shamir.combine(shares[:3])
+        self.assertEqual(recovered, key)
+
+        plaintext, _ = envelope.open_impression(sealed, key=recovered)
+        document = json.loads(plaintext)
+        self.assertEqual(document["handover"]["threshold"], 3)
+        self.assertEqual(document["accounts"][0]["service"], "Bank")
+
+    def test_two_fragments_do_not_open_it(self):
+        key = bytes(range(32))
+        sealed = self.bundle(key)
+
+        stream = iter(bytes(range(256)) * 32)
+        shares = shamir.split(key, 3, 5, rng=lambda: next(stream))
+
+        wrong = shamir.combine(shares[:2])
+        self.assertNotEqual(wrong, key)
+        with self.assertRaises(SealstoneFormatError):
+            envelope.open_impression(sealed, key=wrong)
+
+    def test_a_bundle_declares_itself_a_bundle(self):
+        """One key tells a reader which of the two documents it is holding."""
+        key = bytes(range(32))
+        plaintext, _ = envelope.open_impression(self.bundle(key), key=key)
+        document = json.loads(plaintext)
+
+        self.assertIn("handover", document)
+        self.assertEqual(document["keepers"], [],
+                         "a bundle must not tell each keeper who the others are")

@@ -219,7 +219,25 @@ that does not write it must still preserve one it reads.
 | `securityQuestions` | `questions`: array of `{ "question": "...", "answer": "..." }` |
 | `seedPhrase` | `words`: array of strings, `wordlist` (e.g. `BIP39-english`), `passphrase` (optional) |
 | `hardwareKey` | `label`, `serial`, `keyType` |
+| `password` | `password`, `username` (optional), `site` (optional), `note` (optional) |
 | `note` | `title`, `body` |
+
+**On `steam` and `digits`.** A Steam code is five characters, not six to ten.
+The range above applies to `totp` and `hotp`; when `otpType` is `steam`,
+`digits` is `5`. A reader that applies one range to every kind will reject
+Steam credentials that this specification says are valid, and a writer that
+emits five for Steam and reads back with the wider rule will refuse its own
+output.
+
+**On `password`.** A password is a secret of the same weight as a seed phrase
+or a security question answer, both of which this format already carries, so
+it introduces no category of risk that was not here. It is included because
+what gets somebody back into an account frequently *is* the password, and a
+format for regaining access that stops short of it has a hole in the middle.
+
+`username` is the login as the service asks for it, which is not always the
+account's `identifier`: the account records who you are, this records what you
+type. Only `password` is required.
 
 **Link**
 
@@ -240,7 +258,11 @@ Read as: *the Google account can be used to recover the bank account.* `method` 
 
 - Every `item.accountId` and every `link` endpoint resolves to an existing account.
 - Identifiers are unique within their collection.
-- `digits` between 6 and 10; `period` between 1 and 300; `counter` present if and only if `otpType == "hotp"`.
+- `digits` within the range for that `otpType` (see §3.2); `period` between 1 and 300.
+- `counter` MUST be an integer when `otpType` is `hotp`. For any other kind it MUST be
+  absent **or** `null`. Both spellings appear in the wild and in the vectors here, and a
+  reader that requires absence rejects files this specification calls valid, including
+  its own corpus.
 - `secret` is valid Base32.
 - Unknown `type` values: **preserve the object verbatim and skip it.** Never silently discard — a decoder from an older version must not destroy data written by a newer one on round-trip.
 - **Unknown keys: preserve, wherever they appear.** At the document root, and inside every account, item, link and keeper. §6 promises that a new optional field is a minor change which an older decoder "ignores and preserves", and a new optional field lands on an account or a keeper far more often than at the root. Preserving only the root would keep that promise in the one place it matters least.
@@ -422,6 +444,10 @@ Not a fallback. A designed artifact and a first-class export target.
 | Layout change | **Major** | **Refuses** |
 | Semantic change to an existing field | **Major** | **Refuses** |
 
+`password` was added the same way and for the same reason: a new item type is
+a minor change, an older decoder preserves it and skips it, and no release has
+happened for a bump to inform.
+
 **A minor bump is for a field added after a version has shipped.** No release
 has happened, so optional fields added before the first one are simply part of
 v1 and carry no bump. The freeze in §8.1 covers the layout in §2.1, the meaning
@@ -449,6 +475,7 @@ Ship with the specification, and version them alongside it. **Built and passing*
 | 08 | 3-of-5 Shamir: every reconstructing subset listed, every subset one share short of the threshold listed | both directions | 10 + 10 |
 | 09 | One file per released version, plus a genuinely sealed forward-minor file, a patched-minor file, and an unknown-major file | mixed | 4 |
 | 10 | Production parameters — 64 MiB, t=3, p=4 | opens | marked slow |
+| 11 | The same file cut short at each structurally interesting offset | **rejected with a clear error** | 12 |
 
 **Both directions of the minor-version rule are covered.** A file *sealed* with an unknown minor version must open; a file whose minor byte was *patched* after sealing must fail — and must fail on the authentication tag rather than on version grounds, since the version itself is legal. Only the first can be produced by sealing, and only the second by tampering, so both vectors are needed.
 
@@ -477,7 +504,7 @@ All five open decisions are resolved, and the freeze conditions in 8.1 are met. 
 The format is frozen — no layout change without a major version — once all of the following hold:
 
 - [x] Vendored Argon2id passes every RFC 9106 vector.
-- [x] All ten test vector families in §7 exist and pass.
+- [x] All eleven test vector families in §7 exist and pass.
 - [x] The Python reference decoder passes every one of them.
 - [x] The envelope has been reviewed by someone who did not write it.
 

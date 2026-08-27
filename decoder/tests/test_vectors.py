@@ -178,6 +178,23 @@ class TestOpenSucceeds(unittest.TestCase):
         with self.assertRaises(InvalidVaultError):
             vault.validate(document)
 
+    def test_password_items_round_trip(self):
+        """Only the password is required; the rest are optional."""
+        family = next(f for f in families_of_kind("open-succeeds")
+                      if f["id"] == "03-full-vault")
+        blob = (VECTORS / family["file"]).read_bytes()
+        plaintext, _ = envelope.open_impression(blob, passphrase=passphrase_of(family))
+        document = vault.parse(plaintext)
+
+        entry = next(i for i in document["items"] if i["type"] == "password")
+        self.assertEqual(entry["password"], "correct horse battery staple")
+        self.assertEqual(entry["username"], "user")
+
+        again = vault.parse(json.dumps(document).encode("utf-8"))
+        self.assertEqual(
+            next(i for i in again["items"] if i["type"] == "password")["password"],
+            "correct horse battery staple")
+
     def test_re_serialising_keeps_every_unknown_key(self):
         """Reading and writing again must not be a way to lose data."""
         family = next(f for f in families_of_kind("open-succeeds")

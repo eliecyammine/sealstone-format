@@ -16,6 +16,11 @@ from .errors import InvalidVaultError
 
 FORMAT_VERSION = 1
 
+# Exactly the types in the specification's item table. A type absent here is
+# treated as one written by a newer version: carried through untouched and not
+# validated. That is right for a type this decoder has never heard of and wrong
+# for one the specification declares, so this set and that table are checked
+# against each other by the test suite.
 KNOWN_ITEM_TYPES = {
     "authenticator",
     "recoveryCodes",
@@ -23,6 +28,7 @@ KNOWN_ITEM_TYPES = {
     "securityQuestions",
     "seedPhrase",
     "hardwareKey",
+    "password",
     "note",
 }
 
@@ -38,11 +44,32 @@ OTP_TYPES = {"totp", "hotp", "steam"}
 MAX_ACCOUNTS = 100_000
 MAX_ITEMS = 500_000
 MAX_LINKS = 1_000_000
+MAX_STRING_BYTES = 1024 * 1024
 
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise InvalidVaultError(message)
+
+
+def _validate_password(item: dict, where: str) -> None:
+    """A password item, whose only required field is the password itself.
+
+    An empty one is worse than an absent item: it says the credential is
+    recorded when nothing is. The value is checked for presence and never
+    trimmed, because a password whose trailing space is load-bearing is a
+    password this format promises to return byte for byte.
+    """
+    password = item.get("password")
+    _require(isinstance(password, str) and password != "",
+             f"{where}: password must be a non-empty string")
+    _require(len(password.encode("utf-8")) <= MAX_STRING_BYTES,
+             f"{where}: password is above the {MAX_STRING_BYTES} byte limit")
+
+    for field in ("username", "site", "note"):
+        value = item.get(field)
+        _require(value is None or isinstance(value, str),
+                 f"{where}: {field} must be a string when present")
 
 
 def _validate_authenticator(item: dict, where: str) -> None:
@@ -57,9 +84,16 @@ def _validate_authenticator(item: dict, where: str) -> None:
     _require(algorithm in OTP_ALGORITHMS,
              f"{where}: algorithm must be one of {sorted(OTP_ALGORITHMS)}, got {algorithm!r}")
 
+    # A Steam code is five characters from a 26-symbol alphabet, so the six to
+    # ten range belongs to totp and hotp alone. Applying it to every kind
+    # rejects Steam credentials this specification calls valid, which is the
+    # failure the specification's own note warns about.
     digits = item.get("digits")
-    _require(isinstance(digits, int) and 6 <= digits <= 10,
-             f"{where}: digits must be between 6 and 10, got {digits!r}")
+    if otp_type == "steam":
+        _require(digits == 5, f"{where}: a Steam code is always 5 characters, got {digits!r}")
+    else:
+        _require(isinstance(digits, int) and 6 <= digits <= 10,
+                 f"{where}: digits must be between 6 and 10, got {digits!r}")
 
     period = item.get("period")
     _require(isinstance(period, int) and 1 <= period <= 300,
@@ -144,6 +178,8 @@ def validate(document: dict[str, Any]) -> dict[str, Any]:
         # Unknown types pass through untouched rather than being rejected.
         if item_type == "authenticator":
             _validate_authenticator(item, where)
+        elif item_type == "password":
+            _validate_password(item, where)
 
     link_ids: set[str] = set()
     for index, link in enumerate(links):

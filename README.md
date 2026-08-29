@@ -67,14 +67,19 @@ exist.
 cd decoder && python3 -m unittest discover -s tests -t .
 ```
 
-95 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
+113 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
 executable definition of what implementing this format means — any
-implementation, in any language, has to pass the same eleven families.
+implementation, in any language, has to pass the same twelve families.
 
 Set `SEALSTONE_SLOW_TESTS=1` to include the family at production parameters.
 
 Regenerate the corpus with `python3 vectors/generate.py --all`. Output is
 deterministic, so a diff in `git status` afterwards means the encoder changed.
+
+`Scripts/ci-local.sh` runs everything CI runs, in the order CI runs it,
+including the production-parameter family and the check that the corpus
+regenerates byte-identically. Pass `fast` to skip the slow family while
+working; run it without an argument before pushing.
 
 ## Language stack
 

@@ -41,7 +41,7 @@
     },
     {
       "id": "03-full-vault",
-      "description": "Every item type, three links, one keeper, and one item of an unknown type that must survive a round trip untouched.",
+      "description": "Every item type, an authenticator of each otpType including a five-digit Steam code, three links, one keeper, and one item of an unknown type that must survive a round trip untouched.",
       "kind": "open-succeeds",
       "file": "03-full-vault/impression.seal",
       "passphraseUtf8Hex": "636f727265637420686f727365206261747465727920737461706c65",

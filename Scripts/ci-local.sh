@@ -32,6 +32,23 @@ if ls requirements*.txt pyproject.toml setup.py 2>/dev/null | grep -q .; then
 fi
 ok "standard library only"
 
+# This repository is public. What is open is exactly what somebody needs in
+# order to verify the trust claims and decode their own data: the
+# specification, the vectors that prove it, and a decoder that shares no code
+# with the app. Product thinking, findings, knowledge bases and roadmaps are
+# the business and live in the private repository.
+#
+# Checked mechanically because the same rule was written down elsewhere and
+# broken anyway. A new top-level directory here is a deliberate act.
+OPEN_DIRS="spec vectors decoder Scripts LICENSE README.md"
+for entry in *; do
+  case " $OPEN_DIRS " in
+    *" $entry "*) ;;
+    *) fail "$entry is not something this public repository holds. If it belongs, add it to OPEN_DIRS and say why; if it is product work, it belongs in the private repository." ;;
+  esac
+done
+ok "only the open directories are here"
+
 # ─────────────────────────────────────────────────────── tests
 
 step "Decoder"

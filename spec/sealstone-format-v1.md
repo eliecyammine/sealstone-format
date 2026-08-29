@@ -171,13 +171,20 @@ difference into a diff.
 
 | Object | Required | Optional |
 |---|---|---|
-| Document | `formatVersion`, `vaultId`, `createdAt`, `updatedAt`, `accounts`, `items`, `links` | `keepers`, `handover` |
+| Document | `formatVersion`, `vaultId`, `createdAt`, `updatedAt` | `accounts`, `items`, `links`, `keepers`, `bundles`, `handover` |
 | Account | `id`, `service`, `createdAt` | `identifier`, `domain`, `tags`, `notes` |
 | Item | `id`, `accountId`, `type`, `createdAt` | `favorite`, `ordering`, `modifiedAt`, `lastUsedAt` |
 | Link | `id`, `sourceAccountId`, `targetAccountId`, `method` | `verifiedAt`, `note` |
 
 An absent array and an empty array mean the same thing. A decoder MUST accept
 either and SHOULD write the empty array.
+
+**Every array in this format is therefore optional**, and the table above says
+so. This was worth stating twice because it was once said both ways: the table
+listed the document's collections as required while the sentence above said an
+absent one is legal, and two implementations read the same specification and
+disagreed about whether a file was valid. A collection is optional; a writer
+should still emit it empty, so the next reader is not left inferring.
 
 `identifier` is optional because not every account has one. A service with a
 single login per person has nothing to put there, and forcing a placeholder is
@@ -314,7 +321,11 @@ format for regaining access that stops short of it has a hole in the middle.
 
 `username` is the login as the service asks for it, which is not always the
 account's `identifier`: the account records who you are, this records what you
-type. Only `password` is required.
+type. Only `password` is required, and required means non-empty: an item of
+this type carrying an empty string claims a credential is recorded when none
+is, which in a vault built for regaining access is the one wrong answer that
+stops somebody looking further. It is subject to the string ceiling in §3.2
+like every other value, and like every other value it is never trimmed.
 
 **Link**
 
@@ -381,6 +392,27 @@ That preservation rule is what makes forward compatibility real rather than aspi
 ```
 
 `rehearsedAt` is null until a real reconstruction has succeeded. A keeper set MUST NOT be presented as armed while it is null: an arrangement that has never been reconstructed is an arrangement nobody has evidence works, and the moment it is needed is the wrong moment to find out.
+
+**Where bundle records live: `bundles`, at the document root.** An optional
+array of the objects above, absent or empty on a vault that has none. A
+keeper's `bundleId` resolves into it, and §4.7's rotation needs it: marking one
+bundle `supersededBy` another means both are on record, so a vault that could
+hold only one could not describe a rotation at all.
+
+`bundles` and `handover` are different keys and mean opposite things. `bundles`
+is a vault's record of the arrangements it has made. `handover` is the object
+in §4.2 that marks a file as *being* a bundle rather than a vault, and §4.2
+requires it to be absent from every vault: its presence is the one bit that
+says which kind of file this is, checkable before anything else is trusted. A file carrying both is malformed:
+it claims to be the thing it is describing.
+
+**A bundle record contains no key material and no secret.** It names items by
+identifier, records the shape of the split, and says when it was last
+rehearsed. Everything that could open anything left the device by design.
+
+A decoder that does not implement handover still preserves `bundles`
+untouched, under the preservation rule in §3.4. Layer 1 writes vaults without
+it, and must return one it reads exactly as it arrived.
 
 
 ### 3.6 Identifiers
@@ -594,7 +626,7 @@ Ship with the specification, and version them alongside it. **Built and passing*
 |---|---|---|---|
 | 01 | Empty vault | opens | — |
 | 02 | Single TOTP item | opens | — |
-| 03 | Full vault: every item type, three links, a keeper, an unknown item type, and unknown keys at the root and inside an account, a link and a keeper, all of which must survive a round trip untouched | opens | — |
+| 03 | Full vault: every item type, an authenticator of each `otpType` including a five-digit Steam code, three links, a keeper, an unknown item type, and unknown keys at the root and inside an account, a link and a keeper, all of which must survive a round trip untouched | opens | — |
 | 04 | NFC passphrase — precomposed and decomposed spellings must both open the same file | opens | 2 spellings |
 | 05 | Tamper: one bit flipped in each region of the file | **all must fail** | 15 |
 | 06 | Wrong passphrase, empty passphrase, and correct passphrase with trailing whitespace | **all must fail** | 3 |
@@ -607,7 +639,9 @@ Ship with the specification, and version them alongside it. **Built and passing*
 
 **Both directions of the minor-version rule are covered.** A file *sealed* with an unknown minor version must open; a file whose minor byte was *patched* after sealing must fail — and must fail on the authentication tag rather than on version grounds, since the version itself is legal. Only the first can be produced by sealing, and only the second by tampering, so both vectors are needed.
 
-**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; the limits declared in the manifest must match the implementation's constants; and the identifier kinds the manifest declares must be exactly the kinds the decoder implements, so a manifest cannot drift into describing a format nobody has.
+**Rules the corpus enforces on itself**, checked by its own test suite: every file the manifest names must exist; the tamper family must cover every region of the file; the Shamir family must list *every* threshold-sized subset rather than a sample; the limits declared in the manifest must match the implementation's constants; the item types the decoder knows must be exactly the types the table in §3.4 declares; and the identifier kinds the manifest declares must be exactly the kinds the decoder implements, so a manifest cannot drift into describing a format nobody has.
+
+**A rule that only a vector can enforce.** The Steam credential in family 03 is there because the decoder once applied the six-to-ten digit range to every `otpType` and so refused a five-digit Steam code this specification calls valid. Nothing caught it: the specification said one thing, the decoder did another, and with no vector carrying the case the suite agreed with both. A rule written down and not exercised is a rule two implementations can read differently forever.
 
 **The KDF parameters in the corpus are deliberately far too weak, except in family 10.** Every other family is sealed with 64 KiB of memory and a single iteration, so the whole corpus can be verified in a scripting language in seconds. Those numbers protect nothing and MUST NOT be copied into an implementation; §2.2 has the ones that ship, and family 10 seals a file with them so the parameters that go out are not the least tested thing here. A reader that infers its defaults from a vector header will ship a file anybody can open.
 
@@ -634,7 +668,7 @@ All five open decisions are resolved, and the freeze conditions in 8.1 are met. 
 The format is frozen — no layout change without a major version — once all of the following hold:
 
 - [x] Vendored Argon2id passes every RFC 9106 vector.
-- [x] All eleven test vector families in §7 exist and pass.
+- [x] All twelve test vector families in §7 exist and pass.
 - [x] The Python reference decoder passes every one of them.
 - [x] The envelope has been reviewed by someone who did not write it.
 

@@ -67,9 +67,9 @@ exist.
 cd decoder && python3 -m unittest discover -s tests -t .
 ```
 
-95 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
+113 tests. `tests/test_vectors.py` runs the corpus in `vectors/` and is the
 executable definition of what implementing this format means — any
-implementation, in any language, has to pass the same eleven families.
+implementation, in any language, has to pass the same twelve families.
 
 Set `SEALSTONE_SLOW_TESTS=1` to include the family at production parameters.
 

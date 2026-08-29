@@ -110,7 +110,7 @@ def single_totp_vault() -> dict:
 
 
 def full_vault() -> dict:
-    """Every item type, both link directions, keepers, and an unknown type.
+    """Every item type and otpType, both link directions, keepers, and an unknown type.
 
     This family carries the forward-compatibility checks. A decoder must round
     trip all of them untouched rather than dropping them:
@@ -149,6 +149,16 @@ def full_vault() -> dict:
          "createdAt": "2026-08-24T00:00:00Z", "modifiedAt": "2026-08-24T00:00:00Z",
          "secret": "GEZDGNBVGY3TQOJQ", "algorithm": "SHA1", "digits": 6,
          "period": 30, "counter": 7, "otpType": "hotp"},
+        # Five digits, which is the whole reason this one is here. The
+        # specification says the six-to-ten range belongs to totp and hotp and
+        # that Steam is always five; with no vector carrying it, a decoder
+        # could apply one range to every kind and stay green while refusing
+        # files this format calls valid. One did.
+        {"id": "itm_steam", "accountId": "acc_bank", "type": "authenticator",
+         "favorite": False, "ordering": 2,
+         "createdAt": "2026-08-24T00:00:00Z", "modifiedAt": "2026-08-24T00:00:00Z",
+         "secret": "MFRGGZDFMZTWQ2LK", "algorithm": "SHA1", "digits": 5,
+         "period": 30, "counter": None, "otpType": "steam"},
         {"id": "itm_codes", "accountId": "acc_bank", "type": "recoveryCodes",
          "createdAt": "2026-08-24T00:00:00Z",
          "codes": [{"code": "aaaa-bbbb", "used": False, "usedAt": None},
@@ -671,9 +681,10 @@ def main() -> int:
                           "One account with one TOTP authenticator.",
                           single_totp_vault(), PASSPHRASE, FAST_KDF),
         build_open_family("03-full-vault",
-                          "Every item type, three links, one keeper, and one "
-                          "item of an unknown type that must survive a round "
-                          "trip untouched.",
+                          "Every item type, an authenticator of each otpType "
+                          "including a five-digit Steam code, three links, one "
+                          "keeper, and one item of an unknown type that must "
+                          "survive a round trip untouched.",
                           full_vault(), PASSPHRASE, FAST_KDF),
         build_nfc_family(),
         build_tamper_family(),

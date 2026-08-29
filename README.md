@@ -76,6 +76,11 @@ Set `SEALSTONE_SLOW_TESTS=1` to include the family at production parameters.
 Regenerate the corpus with `python3 vectors/generate.py --all`. Output is
 deterministic, so a diff in `git status` afterwards means the encoder changed.
 
+`Scripts/ci-local.sh` runs everything CI runs, in the order CI runs it,
+including the production-parameter family and the check that the corpus
+regenerates byte-identically. Pass `fast` to skip the slow family while
+working; run it without an argument before pushing.
+
 ## Language stack
 
 | Part | Language | Why |

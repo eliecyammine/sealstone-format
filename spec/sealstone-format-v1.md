@@ -358,7 +358,47 @@ Read as: *the Google account can be used to recover the bank account.* `method` 
 
 That preservation rule is what makes forward compatibility real rather than aspirational. It is also easy to leave half-implemented, because preserving unknown item types looks like the hard part and is not the whole of it. A language whose object mapping reads named fields will drop everything else by default and give no sign that it did. Family 03 of the corpus therefore carries an unknown key at the root *and* inside an account, a link and a keeper, so a decoder that implements only some of this fails a vector rather than shipping.
 
-### 3.5 Keepers
+### 3.5 Reserved root keys
+
+A writer may need to store something beside the vault that is not vault
+contents: how one person had arranged their own copy of an application, what
+they had dismissed, what they had corrected. §3.4 already makes this work —
+every decoder preserves unknown keys at the root, and family 03 proves it — so
+this section reserves a name rather than adding a mechanism. Nothing here
+requires anything of a decoder that §3.4 did not already require.
+
+| Key | Meaning |
+|---|---|
+| `application` | Written by an application for its own use. **Opaque to this format.** A decoder MUST preserve it like any other unknown key and MUST NOT interpret it. |
+
+**One key, so two writers cannot both claim it.** Without a name set aside, two
+applications inventing their own root keys will eventually pick the same one
+and silently overwrite each other's contents inside a file that opened cleanly.
+
+**It is not vault data and MUST NOT be required to read one.** A file with this
+key removed is still a complete vault. An implementation that has never heard
+of the application that wrote it reads every account and item exactly as
+before, and a reader that needs this key to make sense of a vault has
+misunderstood what it is.
+
+**What does not belong here.** Anything another implementation would need in
+order to show the user their own data. If a fact matters to the vault, it
+belongs in a field of its own with a version bump behind it, not in an opaque
+blob one application can read.
+
+```json
+{
+  "formatVersion": 1,
+  "vaultId": "vlt_01J8ZKQ4T7NBVX2M9DCFGH3RWY",
+  "accounts": [],
+  "items": [],
+  "application": {
+    "note": "Contents are the writing application's own. Preserve, do not read."
+  }
+}
+```
+
+### 3.6 Keepers
 
 ```json
 {
@@ -415,7 +455,7 @@ untouched, under the preservation rule in §3.4. Layer 1 writes vaults without
 it, and must return one it reads exactly as it arrived.
 
 
-### 3.6 Identifiers
+### 3.7 Identifiers
 
 Identifiers are strings of the form `<kind>_<body>`, where `kind` is one of
 `vlt`, `acc`, `itm`, `lnk`, `kpr`, `bnd` and `body` is 128 bits rendered in

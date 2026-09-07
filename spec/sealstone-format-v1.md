@@ -250,7 +250,7 @@ The founding document modelled items directly. That cannot express the recovery 
 | **Item** | A credential belonging to an account. A TOTP secret, a set of recovery codes |
 | **Link** | *Account A can be used to recover account B* |
 
-The Map is computed entirely over `links`. Getting this separation right in v1 is what makes layer 2 possible without a format break.
+Separating the three is what lets a reader answer *what recovers what* from the file alone. Getting it right in v1 is what keeps that answerable without a format break.
 
 **Account**
 
@@ -451,8 +451,8 @@ identifier, records the shape of the split, and says when it was last
 rehearsed. Everything that could open anything left the device by design.
 
 A decoder that does not implement handover still preserves `bundles`
-untouched, under the preservation rule in §3.4. Layer 1 writes vaults without
-it, and must return one it reads exactly as it arrived.
+untouched, under the preservation rule in §3.4. An implementation that never
+writes the key must return one it reads exactly as it arrived.
 
 
 ### 3.7 Identifiers
@@ -609,7 +609,7 @@ Removing or replacing a keeper means **reissuing the whole set**:
 2. Re-encrypt the handover bundle under it.
 3. Split the new key into a new fragment set with a new `setId`.
 4. Distribute to the current keepers.
-5. Mark the old bundle `supersededBy` the new one; the relay deletes the old ciphertext.
+5. Mark the old bundle `supersededBy` the new one. Wherever the superseded ciphertext is held, it is no longer the current one and can be discarded.
 6. **Rehearse again.** `rehearsedAt` resets to null.
 
 > **The limitation, stated plainly because the interface must state it too.**
@@ -735,40 +735,7 @@ The at-rest store uses this same envelope with `kdfId = 0x00` — the key comes 
 
 ---
 
-## 10. Knowledge base delivery
-
-The Map needs to know how real services recover accounts. **The obvious implementation leaks the user's entire account list**, which is the most sensitive thing the product holds in aggregate, because it maps where someone's digital life is weakest.
-
-**Normative rules:**
-
-1. The knowledge base **ships bundled** with the application. The Map works fully offline, on day one, with no fetch.
-2. Updates fetch **the entire signed bundle**. There is no per-service, per-domain, or per-query endpoint, and none may ever be added.
-3. The request carries **only a bundle version**. No identifier, no vault-derived parameter, no account information, no device fingerprint.
-4. The bundle is **signed**; an unverified bundle is discarded.
-5. The fetch is made by `Features`, never by a core module, preserving property **P4**.
-6. A stale bundle **never blocks** the Map. Staleness is displayed as a fact, and findings computed from stale data are marked.
-
-Rule 2 is the load-bearing one. A per-service lookup would be more efficient, smaller, and easier — and it would transmit the shape of the user's digital life to us on every launch.
-
----
-
-## 11. Relay authentication
-
-The relay must know who is checking in, and the product has no accounts. It authenticates with a **signature, not a login**.
-
-| Step | Mechanism |
-|---|---|
-| Arming | Generate an Ed25519 keypair. Private key stored in the vault; public key registered with the relay alongside the ciphertext and the interval |
-| Check-in | The relay issues a challenge. The app signs it. No password, nothing to phish, nothing replayable |
-| Contact | The user's notification address is held for warnings only |
-| Compromise | A relay breach yields ciphertext, public keys, timers and contact addresses. **It does not yield the ability to impersonate a user**, because the relay never held anything secret |
-| Loss | Losing the vault means losing the check-in key, which means the timer runs down and releases — **which is precisely the intended behaviour**. This is the mechanism working, not a failure mode |
-
-That last row is worth sitting with: the failure mode of losing your device is the one the feature exists to handle, so the authentication design should not fight it.
-
----
-
-## 12. Import formats at launch
+## 10. Import formats at launch
 
 Named so the scope is bounded. Each gets a dedicated adapter, a property-based test suite, and a committed fuzz corpus.
 

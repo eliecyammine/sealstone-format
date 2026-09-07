@@ -49,6 +49,24 @@ for entry in *; do
 done
 ok "only the open directories are here"
 
+# The same rule, applied to the words rather than the file tree. The
+# specification describes a file. It had grown two sections that described the
+# application instead — how a knowledge base is delivered, and how a service
+# authenticates a check-in — plus the internal names for the product's paid
+# tiers. None of that is needed to write a decoder, and all of it told a reader
+# what is being built and in what order.
+#
+# Handover, fragments and keepers stay: a keeper has to be able to reconstruct
+# from this document alone, with no application and no website, which is the
+# promise the whole repository exists to keep.
+BUSINESS='\blayer [0-9]|\bthe Map\b|paywall|subscription|\bpaid tier|\bpricing\b|roadmap|knowledge base'
+hits=$(grep -rniE "$BUSINESS" spec/ README.md 2>/dev/null || true)
+if [ -n "$hits" ]; then
+  printf "%s\n" "$hits" | head -10
+  fail "the specification describes a file, not a product. Move this to the private repository."
+fi
+ok "the specification describes a file, not a product"
+
 # ─────────────────────────────────────────────────────── tests
 
 step "Decoder"

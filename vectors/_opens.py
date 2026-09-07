@@ -7,7 +7,7 @@ from _settings import (ROOT, FAST_KDF, REAL_KDF, PASSPHRASE, canonical,
                        deterministic_bytes, fixed_salt_and_nonce,
                        header_summary, write)
 from _documents import empty_vault, single_totp_vault, full_vault
-from sealstone_format import envelope, shamir
+from sealstone_format import envelope, fragment, shamir
 
 
 def build_open_family(family: str, description: str, document: dict,
@@ -89,6 +89,74 @@ def build_shamir_family() -> dict:
                    for index, share in shares],
         "mustReconstruct": reconstructing,
         "mustNotReconstruct": insufficient,
+    }
+
+
+def build_fragment_family() -> dict:
+    """The container a keeper holds, in both of its forms.
+
+    Shamir has its own family; this one is about the wrapper around a share.
+    Two implementations agreeing on the bytes is what stops a keeper being
+    handed a fragment the other one cannot read, which is discovered at the one
+    moment nobody can ask anybody.
+    """
+    family = "13-fragments"
+    set_id = deterministic_bytes(f"{family}/set", 16)
+    share = deterministic_bytes(f"{family}/share", 32)
+    binary = fragment.encode(set_id, 2, 3, 5, share)
+
+    def broken(mutate) -> str:
+        data = bytearray(binary)
+        mutate(data)
+        return bytes(data).hex()
+
+    def flip_a_share_byte(data):
+        data[40] ^= 0x01
+
+    def wrong_magic(data):
+        data[0] = ord("X")
+
+    def future_version(data):
+        data[7] = 9
+
+    def index_zero(data):
+        data[24] = 0
+
+    paper = fragment.to_paper(set_id, 2, 3, 5, share)
+
+    return {
+        "id": family,
+        "description": (
+            "One Shamir share in the container a keeper actually holds. The "
+            "binary form byte for byte, the paper form it prints as, and the "
+            "transcription substitutions a reader must accept when somebody "
+            "types it back in. Also the malformed ones: a wrong magic, a "
+            "version from the future, an index of zero, a flipped bit the "
+            "checksum has to catch, and a truncated file."
+        ),
+        "kind": "fragments",
+        "setIdHex": set_id.hex(),
+        "index": 2,
+        "threshold": 3,
+        "total": 5,
+        "shareHex": share.hex(),
+        "encodedHex": binary.hex(),
+        "paper": paper,
+        # Typed back by somebody reading off a sheet: a letter O for a zero, a
+        # lowercase l for a one, and whichever case their keyboard was in.
+        "retyped": (paper.replace("0", "O").replace("1", "l").lower()),
+        "mustReject": [
+            {"hex": broken(flip_a_share_byte),
+             "reason": "one flipped bit, which the checksum exists to catch"},
+            {"hex": broken(wrong_magic),
+             "reason": "not a fragment at all"},
+            {"hex": broken(future_version),
+             "reason": "a version this reader does not handle"},
+            {"hex": broken(index_zero),
+             "reason": "index zero is the secret itself, never a share"},
+            {"hex": binary[:-6].hex(),
+             "reason": "truncated, so the length disagrees with the header"},
+        ],
     }
 
 

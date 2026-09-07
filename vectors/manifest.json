@@ -587,6 +587,41 @@
           "reason": "the body is case-insensitive"
         }
       ]
+    },
+    {
+      "id": "13-fragments",
+      "description": "One Shamir share in the container a keeper actually holds. The binary form byte for byte, the paper form it prints as, and the transcription substitutions a reader must accept when somebody types it back in. Also the malformed ones: a wrong magic, a version from the future, an index of zero, a flipped bit the checksum has to catch, and a truncated file.",
+      "kind": "fragments",
+      "setIdHex": "026abebe19cb4c60d5232a68707d7a22",
+      "index": 2,
+      "threshold": 3,
+      "total": 5,
+      "shareHex": "f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882332c",
+      "encodedHex": "5345414c46524701026abebe19cb4c60d5232a68707d7a220203050020f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882332c45000aa3",
+      "paper": "Sealstone fragment 2 of 5 — any 3 open it together\nSet 026A-BEBE\n\n  AD2M2  K26A9  3G20K  AQTZ1  KJTCC\n  3AJ6A  K8E1Y  QM8G2  0C2G0  87GD6\n  8Y42E  SE5CM  T7SJC  ZZGJ5  V7DQR\n  DTJDZ  HYWX1  J24ZR  QRH0H  K5H2G\n  02N3\n\nThis is one piece of a key. On its own it opens nothing.\nTo open what it protects, 3 of the 5 people holding\npieces need to bring theirs together.\n\nLetters are not case sensitive. I and L read as 1, O reads as 0.\nThere is no expiry date on this sheet.",
+      "retyped": "sealstone fragment 2 of 5 — any 3 open it together\nset o26a-bebe\n\n  ad2m2  k26a9  3g2ok  aqtzl  kjtcc\n  3aj6a  k8ely  qm8g2  oc2go  87gd6\n  8y42e  se5cm  t7sjc  zzgj5  v7dqr\n  dtjdz  hywxl  j24zr  qrhoh  k5h2g\n  o2n3\n\nthis is one piece of a key. on its own it opens nothing.\nto open what it protects, 3 of the 5 people holding\npieces need to bring theirs together.\n\nletters are not case sensitive. i and l read as l, o reads as o.\nthere is no expiry date on this sheet.",
+      "mustReject": [
+        {
+          "hex": "5345414c46524701026abebe19cb4c60d5232a68707d7a220203050020f06991e209d971594d1f3266ff0917676df0dd49bf8fb9d0c844fe2f8882332c45000aa3",
+          "reason": "one flipped bit, which the checksum exists to catch"
+        },
+        {
+          "hex": "5845414c46524701026abebe19cb4c60d5232a68707d7a220203050020f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882332c45000aa3",
+          "reason": "not a fragment at all"
+        },
+        {
+          "hex": "5345414c46524709026abebe19cb4c60d5232a68707d7a220203050020f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882332c45000aa3",
+          "reason": "a version this reader does not handle"
+        },
+        {
+          "hex": "5345414c46524701026abebe19cb4c60d5232a68707d7a220003050020f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882332c45000aa3",
+          "reason": "index zero is the secret itself, never a share"
+        },
+        {
+          "hex": "5345414c46524701026abebe19cb4c60d5232a68707d7a220203050020f06991e209d971594d1f3267ff0917676df0dd49bf8fb9d0c844fe2f8882",
+          "reason": "truncated, so the length disagrees with the header"
+        }
+      ]
     }
   ]
 }

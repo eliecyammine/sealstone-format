@@ -430,3 +430,64 @@ class TestVersionVectors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class FragmentVectors(unittest.TestCase):
+    """The container a keeper holds.
+
+    Shamir has its own family; this one is the wrapper around a share. The
+    point of checking it here is that the Swift implementation checks the same
+    bytes, so a keeper cannot be handed a fragment the other reader will not
+    open.
+    """
+
+    def families(self):
+        return families_of_kind("fragments")
+
+    def test_the_encoded_bytes_are_what_the_corpus_says(self):
+        from sealstone_format import fragment
+
+        for family in self.families():
+            built = fragment.encode(
+                bytes.fromhex(family["setIdHex"]),
+                family["index"], family["threshold"], family["total"],
+                bytes.fromhex(family["shareHex"]))
+            self.assertEqual(built.hex(), family["encodedHex"], family["id"])
+
+    def test_the_encoded_bytes_read_back(self):
+        from sealstone_format import fragment
+
+        for family in self.families():
+            read = fragment.decode(bytes.fromhex(family["encodedHex"]))
+            self.assertEqual(read["set_id"].hex(), family["setIdHex"])
+            self.assertEqual(read["share"].hex(), family["shareHex"])
+            self.assertEqual(read["index"], family["index"])
+            self.assertEqual(read["threshold"], family["threshold"])
+            self.assertEqual(read["total"], family["total"])
+
+    def test_the_paper_form_reads_back(self):
+        from sealstone_format import fragment
+
+        for family in self.families():
+            read = fragment.from_paper(family["paper"])
+            self.assertEqual(read["share"].hex(), family["shareHex"], family["id"])
+
+    def test_a_retyped_sheet_still_reads(self):
+        """The whole reason Crockford was chosen.
+
+        Somebody copying off a sheet writes what they see: a letter O for a
+        zero, a lowercase l for a one, in whichever case they were typing.
+        """
+        from sealstone_format import fragment
+
+        for family in self.families():
+            read = fragment.from_paper(family["retyped"])
+            self.assertEqual(read["share"].hex(), family["shareHex"], family["id"])
+
+    def test_the_malformed_ones_are_refused(self):
+        from sealstone_format import fragment
+
+        for family in self.families():
+            for case in family["mustReject"]:
+                with self.assertRaises(fragment.FragmentError, msg=case["reason"]):
+                    fragment.decode(bytes.fromhex(case["hex"]))

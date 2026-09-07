@@ -22,6 +22,7 @@ import sys
 from _settings import ROOT, FAST_KDF, PASSPHRASE
 from _documents import empty_vault, single_totp_vault, full_vault
 from _opens import (build_open_family, build_nfc_family, build_shamir_family,
+                    build_fragment_family,
                     build_real_parameters_family)
 from _rejects import (build_tamper_family, build_truncation_family,
                       build_wrong_passphrase_family, build_hostile_family,
@@ -61,6 +62,7 @@ def main() -> int:
         build_wrong_passphrase_family(),
         build_hostile_family(),
         build_shamir_family(),
+        build_fragment_family(),
         build_identifier_family(),
         build_version_family(),
         build_truncation_family(),

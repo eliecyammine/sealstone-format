@@ -517,7 +517,8 @@ what this is and where it came from:
     "threshold": 3,
     "total": 5,
     "sealedAt": "2026-08-24T10:00:00Z",
-    "note": "For the family. The bank and the email."
+    "note": "For the family. The bank and the email.",
+    "supersededBy": null
   }
 }
 ```
@@ -533,7 +534,9 @@ a way of making a bad day worse.
 |---|---|
 | `handover` present means this is a bundle, absent means it is a vault | One bit, checkable before anything else is trusted |
 | `vaultId` is the vault it was cut from, not a new one | A keeper handing it back must be matchable to the original |
-| `bundleId` is unique per bundle, and stable across reissues of the same set | Rotation replaces the fragments, not the identity of what they open |
+| `bundleId` names the arrangement and does not change when a set is reissued | Rotation replaces the fragments, not the identity of what they open |
+| `setId` names one split and changes on every reissue | It is what a fragment carries, and what says whether a keeper's sheet is the current one |
+| `supersededBy`, when present, is the `setId` that replaced this one | A keeper holding an old sheet can tell that it is old, while the thing it opens keeps one identity. It names a set rather than a bundle because a set is what was superseded |
 | `setId` matches the `setId` in every fragment of the set | Catches a fragment from another set before the reconstruction fails obscurely |
 | `threshold` and `total` match the fragments | A bundle that disagrees with its fragments about *k* cannot be opened by following its own instructions |
 | `keepers` MUST be empty | A keeper arrangement is a fact about the vault, and copying it into what the keepers hold tells each of them who the others are |
@@ -609,7 +612,7 @@ Removing or replacing a keeper means **reissuing the whole set**:
 2. Re-encrypt the handover bundle under it.
 3. Split the new key into a new fragment set with a new `setId`.
 4. Distribute to the current keepers.
-5. Mark the old bundle `supersededBy` the new one. Wherever the superseded ciphertext is held, it is no longer the current one and can be discarded.
+5. Set `supersededBy` on the old bundle to the **new `setId`**. The `bundleId` does not change: what was replaced is the split, not the thing it opens. Wherever the superseded ciphertext is held, it is no longer the current one and can be discarded.
 6. **Rehearse again.** `rehearsedAt` resets to null.
 
 > **The limitation, stated plainly because the interface must state it too.**
@@ -629,7 +632,7 @@ Not a fallback. A designed artifact and a first-class export target.
 
 **Constraints:** legible printed at A4 or US Letter on a domestic printer in black and white. No QR code as the *only* representation of anything — a scanner in ten years is an assumption, and human-readable characters are not. Every secret grouped for transcription. No Sealstone branding above the instructions.
 
-> **Open decision.** Whether the passphrase is included by default. Including it makes the sheet self-sufficient and makes the sheet the single point of failure. Excluding it makes the sheet safe to store loosely and useless alone. **Recommendation: excluded by default, includable with an explicit choice and a clear statement of what changes.**
+**The passphrase is excluded by default** (§8, decision 3). Including it makes the sheet self-sufficient and makes the sheet the single point of failure; excluding it makes the sheet safe to store loosely and useless alone. It is includable by explicit choice, with that consequence stated in the same breath.
 
 ---
 
